@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendAudioData: (buffer) => ipcRenderer.send('audio-recorded', buffer),
   sendAudioError: (error) => ipcRenderer.send('audio-error', error),
   sendWaveformData: (data) => ipcRenderer.send('waveform-data', data),
+  sendLiveAudioSlice: (buffer) => ipcRenderer.send('live-audio-slice', buffer),
 
   // Audio Recording (Main to Renderer)
   onStartRecording: (callback) => {
@@ -63,6 +64,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onNavigateTab: (callback) => {
     ipcRenderer.on('navigate-tab', (event, tab) => callback(tab));
+  },
+  onLiveTranscriptionUpdate: (callback) => {
+    ipcRenderer.on('live-dictation-snippet', (event, text) => callback(text));
   },
 
   // Manual trigger from UI

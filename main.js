@@ -6,6 +6,7 @@ const TranscriptionService = require('./src/transcription');
 const ClipboardManager = require('./src/clipboardManager');
 const Config = require('./src/config');
 const Logger = require('./src/logger');
+const LocalServer = require('./src/localServer');
 
 // Disable GPU to prevent flashing and GPU errors
 app.commandLine.appendSwitch('disable-gpu');
@@ -18,22 +19,25 @@ let tray = null;
 let hotkeyManager = null;
 let audioRecorder = null;
 let transcriptionService = null;
+let localServer = null;
 let recordingStatus = 'idle'; // 'idle', 'recording', 'processing'
 let isRecording = false;
-
+let liveAccumulatedText = '';
+let isSliceProcessing = false;
+let pendingSliceData = null;
 
 function createRecordingIndicator() {
   const { screen } = require('electron');
-  // Use the display where the user's cursor is, not necessarily the primary
   const cursorPos = screen.getCursorScreenPoint();
   const activeDisplay = screen.getDisplayNearestPoint(cursorPos);
   const { x: displayX, y: displayY, width, height: displayHeight } = activeDisplay.bounds;
 
   recordingIndicator = new BrowserWindow({
-    width: 180,
-    height: 64,
-    x: Math.floor(displayX + width / 2 - 90), // Center on active display
-    y: displayY + displayHeight - 90, // 90px from bottom of active display
+    title: 'ezspeak-indicator',
+    width: 440,
+    height: 76,
+    x: Math.floor(displayX + width / 2 - 220),
+    y: displayY + displayHeight - 110,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -41,45 +45,41 @@ function createRecordingIndicator() {
     resizable: false,
     show: false,
     focusable: false,
-    acceptFirstMouse: false, // Prevent window from stealing focus on macOS
-    visibleOnAllWorkspaces: true, // Show on all desktops without stealing focus
+    acceptFirstMouse: true,
+    visibleOnAllWorkspaces: true,
     webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true
     }
   });
 
-  // On Windows, use a higher z-order level so the overlay isn't hidden
-  // behind elevated or fullscreen windows. noop on macOS.
   if (process.platform === 'win32') {
     recordingIndicator.setAlwaysOnTop(true, 'pop-up-menu');
   }
 
   recordingIndicator.loadFile('renderer/recording-indicator.html');
-  recordingIndicator.setIgnoreMouseEvents(false); // Allow dragging
+  recordingIndicator.setIgnoreMouseEvents(false);
 }
 
 function showRecordingIndicator() {
+  const hotkey = Config.getHotkey() || 'Ctrl+Space';
   if (recordingIndicator && !recordingIndicator.isDestroyed()) {
-    // Reposition to the display where the cursor currently is
     const { screen } = require('electron');
     const cursorPos = screen.getCursorScreenPoint();
     const activeDisplay = screen.getDisplayNearestPoint(cursorPos);
     const { x: displayX, y: displayY, width, height: displayHeight } = activeDisplay.bounds;
     recordingIndicator.setPosition(
-      Math.floor(displayX + width / 2 - 90),
-      displayY + displayHeight - 90
+      Math.floor(displayX + width / 2 - 220),
+      displayY + displayHeight - 110
     );
-    recordingIndicator.showInactive(); // Show without stealing focus
-    // Trigger timer reset
-    recordingIndicator.webContents.executeJavaScript('if (typeof startTimer === "function") startTimer();');
+    recordingIndicator.showInactive();
+    recordingIndicator.webContents.executeJavaScript(`if (typeof setRecordingMode === "function") setRecordingMode(${JSON.stringify(hotkey)});`);
   } else {
     createRecordingIndicator();
-    // Use did-finish-load for reliability — ready-to-show can miss when show:false
     recordingIndicator.webContents.once('did-finish-load', () => {
-      recordingIndicator.showInactive(); // Show without stealing focus
-      // Trigger timer start after window is shown
-      recordingIndicator.webContents.executeJavaScript('if (typeof startTimer === "function") startTimer();');
+      recordingIndicator.showInactive();
+      recordingIndicator.webContents.executeJavaScript(`if (typeof setRecordingMode === "function") setRecordingMode(${JSON.stringify(hotkey)});`);
     });
   }
 }
@@ -87,14 +87,21 @@ function showRecordingIndicator() {
 function hideRecordingIndicator() {
   if (recordingIndicator && !recordingIndicator.isDestroyed()) {
     recordingIndicator.hide();
-    // Reset to recording mode for next use
-    recordingIndicator.webContents.executeJavaScript('if (typeof setRecordingMode === "function") setRecordingMode();');
+    recordingIndicator.webContents.executeJavaScript('if (typeof clearLiveText === "function") clearLiveText();');
   }
 }
 
 function setIndicatorTranscribing() {
   if (recordingIndicator && !recordingIndicator.isDestroyed()) {
     recordingIndicator.webContents.executeJavaScript('if (typeof setTranscribingMode === "function") setTranscribingMode();');
+  }
+}
+
+function updateIndicatorLiveText(text) {
+  if (recordingIndicator && !recordingIndicator.isDestroyed()) {
+    try {
+      recordingIndicator.webContents.executeJavaScript(`if (typeof setLiveText === "function") setLiveText(${JSON.stringify(text)});`);
+    } catch (e) {}
   }
 }
 
@@ -252,6 +259,52 @@ async function initializeServices() {
     handleRecordStop,
     globalShortcut
   );
+
+  // Initialize local HTTP IPC server for Wayland / global compositor triggers
+  localServer = new LocalServer({
+    onToggle: () => {
+      if (hotkeyManager) hotkeyManager.handleToggle();
+      else if (isRecording) handleRecordStop();
+      else handleRecordStart();
+    },
+    onStart: () => handleRecordStart(),
+    onStop: () => handleRecordStop(),
+    getStatus: () => ({ isRecording, status: recordingStatus })
+  });
+  localServer.start();
+}
+
+function cleanWhisperOutput(text) {
+  if (!text) return '';
+  let str = String(text).trim();
+  str = str.replace(/\[.*?\]/g, '').replace(/\(.*?\)/g, '').trim();
+  const hallucinations = [
+    'thank you', 'thank you.', 'thanks for watching', 'thanks for watching!',
+    'subtitles by', 'subscribe', 'you', '.', '...', 'bye'
+  ];
+  if (hallucinations.includes(str.toLowerCase())) {
+    return '';
+  }
+  return str;
+}
+
+/**
+ * Detect voice stop commands (e.g. "stop listening", "stop recording", "turn off")
+ * and strip them from the speech text
+ */
+function detectAndCleanVoiceCommands(text) {
+  if (!text) return { text: '', shouldStop: false };
+  let cleaned = cleanWhisperOutput(text);
+
+  const stopRegex = /\b(stop\s+listening|stop\s+dictation|stop\s+recording|turn\s+off\s+listening|turn\s+off|please\s+stop\s+listening)\b[\.\?!]?/i;
+  let shouldStop = false;
+
+  if (stopRegex.test(cleaned)) {
+    shouldStop = true;
+    cleaned = cleaned.replace(stopRegex, '').trim();
+  }
+
+  return { text: cleaned, shouldStop };
 }
 
 async function handleRecordStart() {
@@ -279,6 +332,10 @@ async function handleRecordStart() {
   try {
     Logger.recording('Starting recording...');
     isRecording = true;
+    if (hotkeyManager) hotkeyManager.setRecording(true);
+    liveAccumulatedText = '';
+    isSliceProcessing = false;
+    pendingSliceData = null;
     setRecordingStatus('recording');
     showRecordingIndicator(); // Show visual indicator
 
@@ -287,6 +344,7 @@ async function handleRecordStart() {
   } catch (error) {
     Logger.error('Error starting recording:', error);
     isRecording = false;
+    if (hotkeyManager) hotkeyManager.setRecording(false);
     setRecordingStatus('idle');
     hideRecordingIndicator();
   }
@@ -302,72 +360,105 @@ async function handleRecordStop() {
 
   try {
     Logger.recording('Stopping recording...');
-    setIndicatorTranscribing(); // Switch to transcribing mode instead of hiding
+    setIndicatorTranscribing();
     setRecordingStatus('processing');
     isRecording = false;
+    if (hotkeyManager) hotkeyManager.setRecording(false);
 
     const audioFilePath = await audioRecorder.stopRecording();
     Logger.success('Recording stopped, file:', audioFilePath);
 
-    // Check file size
-    const stats = require('fs').statSync(audioFilePath);
-    const fileSizeKB = (stats.size / 1024).toFixed(2);
-    Logger.log(`Audio file size: ${fileSizeKB} KB`);
+    Logger.log('Transcribing complete speech audio...');
+    const rawTranscription = await transcriptionService.transcribe(audioFilePath);
+    const { text: cleaned, shouldStop } = detectAndCleanVoiceCommands(rawTranscription);
 
-    if (!audioFilePath || !require('fs').existsSync(audioFilePath)) {
-      throw new Error('Audio file was not created');
-    }
-
-    // Transcribe audio
-    Logger.log('Sending to Whisper API for transcription...');
-    const transcribedText = await transcriptionService.transcribe(audioFilePath);
-    Logger.transcription('Transcription result:', transcribedText);
-
-    if (transcribedText && transcribedText.trim().length > 0) {
-      // Auto-paste the transcribed text
-      Logger.log('Auto-pasting text...');
-      await ClipboardManager.autoPaste(transcribedText.trim());
-      Logger.success('Text pasted successfully!');
-
-      // Save to history
-      Config.addToHistory(transcribedText.trim());
-      Logger.log('Transcription saved to history');
-
-      // Notify settings window so History tab stays live if it's open
+    if (cleaned && cleaned.trim().length > 0) {
+      Logger.log(`Typing transcription word-by-word at cursor: "${cleaned}"`);
+      await ClipboardManager.typeWordByWord(cleaned.trim());
+      Config.addToHistory(cleaned.trim());
+      updateIndicatorLiveText(cleaned.trim());
       if (settingsWindow && !settingsWindow.isDestroyed()) {
-        try {
-          settingsWindow.webContents.send('history-updated');
-        } catch (e) {
-          // Window may be in the middle of loading — ignore
-        }
+        try { settingsWindow.webContents.send('history-updated'); } catch (e) {}
       }
     } else {
-      Logger.warn('No text to paste (empty transcription)');
+      Logger.warn('No text to paste (empty transcription or stop phrase only)');
     }
 
-    hideRecordingIndicator(); // Hide indicator after completion
-    setRecordingStatus('idle');
+    if (recordingIndicator && !recordingIndicator.isDestroyed()) {
+      recordingIndicator.webContents.executeJavaScript('if (typeof setDoneMode === "function") setDoneMode();');
+    }
+    setTimeout(() => {
+      hideRecordingIndicator();
+      setRecordingStatus('idle');
+    }, 600);
+
   } catch (error) {
     const errorMessage = error?.message || error?.toString() || 'Unknown error occurred';
-    const errorStack = error?.stack || 'No stack trace available';
-
     Logger.error('Error in recording/transcription:', errorMessage);
-    Logger.error('Full error object:', error);
-    Logger.error('Stack:', errorStack);
-
     setRecordingStatus('idle');
     hideRecordingIndicator();
 
-    // Send error to renderer if settings window is open
     if (settingsWindow && !settingsWindow.isDestroyed()) {
       try {
         settingsWindow.webContents.send('error', errorMessage);
-      } catch (e) {
-        Logger.error('Failed to send error to renderer:', e);
-      }
+      } catch (e) {}
     }
   }
 }
+
+// Live Streaming Audio Slice Handler (Real-time dictation & voice command detection)
+ipcMain.on('live-audio-slice', async (event, bufferArray) => {
+  if (!isRecording) return;
+
+  if (isSliceProcessing) {
+    pendingSliceData = bufferArray;
+    return;
+  }
+
+  isSliceProcessing = true;
+  try {
+    const tempDir = path.join(require('os').tmpdir(), 'ezspeak');
+    if (!require('fs').existsSync(tempDir)) {
+      require('fs').mkdirSync(tempDir, { recursive: true });
+    }
+    const slicePath = path.join(tempDir, `slice_${Date.now()}.webm`);
+    require('fs').writeFileSync(slicePath, Buffer.from(bufferArray));
+
+    // Transcribe speech so far
+    const rawText = await transcriptionService.transcribe(slicePath);
+    const { text: cleaned, shouldStop } = detectAndCleanVoiceCommands(rawText);
+
+    // Voice Command: "stop listening" detected live!
+    if (shouldStop && isRecording) {
+      Logger.log('[VOICE COMMAND] "stop listening" detected! Automatically turning off dictation...');
+      handleRecordStop();
+      return;
+    }
+
+    if (cleaned && cleaned.length > 0 && isRecording) {
+      updateIndicatorLiveText(cleaned);
+
+      if (settingsWindow && !settingsWindow.isDestroyed()) {
+        try {
+          settingsWindow.webContents.send('live-dictation-snippet', cleaned);
+        } catch (e) {}
+      }
+    }
+  } catch (err) {
+    Logger.warn('Live slice speech check warning:', err.message);
+  } finally {
+    isSliceProcessing = false;
+    if (pendingSliceData && isRecording) {
+      const next = pendingSliceData;
+      pendingSliceData = null;
+      setImmediate(() => {
+        if (isRecording) {
+          ipcMain.emit('live-audio-slice', event, next);
+        }
+      });
+    }
+  }
+});
 
 // IPC Handlers
 ipcMain.handle('get-api-key', () => {

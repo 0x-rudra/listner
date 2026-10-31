@@ -20,8 +20,19 @@ class LocalTranscriptionService {
   }
 
   getModelsDir() {
-    const { app } = require('electron');
-    const modelsDir = path.join(app.getPath('userData'), 'whisper-models');
+    let userData = '';
+    try {
+      const { app } = require('electron');
+      if (app && app.getPath) {
+        userData = app.getPath('userData');
+      }
+    } catch (e) {}
+
+    if (!userData) {
+      const home = require('os').homedir();
+      userData = path.join(home, '.config', 'ezspeak');
+    }
+    const modelsDir = path.join(userData, 'whisper-models');
     if (!fs.existsSync(modelsDir)) {
       fs.mkdirSync(modelsDir, { recursive: true });
     }
@@ -45,6 +56,12 @@ class LocalTranscriptionService {
     const candidatePath = path.join(modelsDir, expectedFilename);
     if (fs.existsSync(candidatePath)) {
       return candidatePath;
+    }
+
+    // Prefer base.en if available in modelsDir
+    const basePath = path.join(modelsDir, 'ggml-base.en.bin');
+    if (fs.existsSync(basePath)) {
+      return basePath;
     }
 
     // Check bundled model
@@ -463,8 +480,13 @@ class LocalTranscriptionService {
         '-m', activeModel,
         '-f', wavPath,
         '-l', 'en',
+        '-t', String(Math.min(6, require('os').cpus().length || 4)),
         '-otxt',
-        '-np'
+        '-np',
+        '-nt',
+        '-nf',
+        '--suppress-nst',
+        '-nth', '0.6'
       ];
 
       // Add library path for dynamic libraries

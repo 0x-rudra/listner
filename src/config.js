@@ -36,7 +36,7 @@ const store = new Store({
     // App & Audio Settings
     mode: 'toggle', // 'toggle' or 'hold'
     microphoneDeviceId: 'default',
-    hotkey: os.platform() === 'darwin' ? 'MetaRight' : 'CtrlRight',
+    hotkey: 'Ctrl+Space',
     sampleRate: 16000,
     channels: 1,
     bitDepth: 16,
@@ -228,7 +228,11 @@ class Config {
   }
 
   static getHotkey() {
-    return store.get('hotkey');
+    const hk = store.get('hotkey');
+    if (!hk || hk === 'CtrlRight' || hk === 'MetaRight') {
+      return 'Ctrl+Space';
+    }
+    return hk;
   }
 
   static setHotkey(hotkey) {

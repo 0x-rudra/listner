@@ -349,15 +349,25 @@
 
                 <!-- Hotkey Binder -->
                 <div class="form-group">
-                    <label for="hotkey">Recording Hotkey</label>
+                    <div class="label-with-badge">
+                        <label for="hotkey">Global Dictation Hotkey</label>
+                        <span class="status-badge ready" id="hotkeyStatusBadge">Global OS Active</span>
+                    </div>
                     <input 
                         type="text" 
                         id="hotkey" 
                         placeholder="Click and press any key..."
                         readonly
                     />
+                    <div class="hotkey-presets-row">
+                        <span class="presets-label">Quick presets:</span>
+                        <button type="button" class="preset-btn" data-hotkey="Ctrl+Space">Ctrl+Space</button>
+                        <button type="button" class="preset-btn" data-hotkey="Alt+Space">Alt+Space</button>
+                        <button type="button" class="preset-btn" data-hotkey="Ctrl+Shift+Space">Ctrl+Shift+Space</button>
+                        <button type="button" class="preset-btn" data-hotkey="F8">F8</button>
+                    </div>
                     <p class="help-text">
-                        Click the field and press any key combination to set it as your global dictation hotkey.
+                        Press your global shortcut anywhere across the OS to pop up live dictation at your cursor.
                     </p>
                 </div>
             </div>

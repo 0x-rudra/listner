@@ -129,6 +129,9 @@ async function loadSettings() {
 
             if (hotkeyInput) hotkeyInput.value = displayName;
             if (dashHotkey) dashHotkey.textContent = displayName;
+
+            const presetBtns = document.querySelectorAll('.preset-btn');
+            presetBtns.forEach(b => b.classList.toggle('active', b.dataset.hotkey === hotkey));
         }
 
         // Fill BYOK Inputs
@@ -849,6 +852,24 @@ function setupHotkeyCapture() {
             loadSettings();
         }
     });
+
+    // Preset buttons click
+    const presetBtns = document.querySelectorAll('.preset-btn');
+    presetBtns.forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const hotkey = btn.dataset.hotkey;
+            try {
+                await window.electronAPI.setHotkey(hotkey);
+                if (hotkeyInput) hotkeyInput.value = hotkey;
+                const dashHotkey = document.getElementById('dashboardHotkeyDisplay');
+                if (dashHotkey) dashHotkey.textContent = hotkey;
+                presetBtns.forEach(b => b.classList.toggle('active', b.dataset.hotkey === hotkey));
+                showToast(`Hotkey set to ${hotkey}`);
+            } catch (e) {
+                showToast(`Failed to set hotkey: ${e.message}`, 'error');
+            }
+        });
+    });
 }
 
 // ─── Initialize ──────────────────────────────────────────────────────────────
@@ -869,6 +890,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const historyPanel = document.getElementById('panel-history');
             if (historyPanel && historyPanel.style.display !== 'none') {
                 loadAndRenderHistory();
+            }
+        });
+    }
+
+    // Live dictation streaming text on dashboard
+    if (window.electronAPI.onLiveTranscriptionUpdate) {
+        window.electronAPI.onLiveTranscriptionUpdate(text => {
+            const textEl = document.getElementById('dashLatestText');
+            if (textEl) {
+                textEl.textContent = `"${text}"`;
+                textEl.style.color = '#e4e4e7';
             }
         });
     }

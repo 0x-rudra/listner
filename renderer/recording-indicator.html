@@ -1,224 +1,360 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
     <meta charset="UTF-8">
+    <title>ezspeak-indicator</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         body {
             background: transparent;
             overflow: hidden;
-            -webkit-app-region: drag;
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 180px;
-            height: 64px;
+            width: 440px;
+            height: 76px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #f4f4f5;
         }
 
-        #waveCanvas {
+        /* ── Glassmorphic Dictation Capsule ─────────────────────────── */
+        .capsule {
+            width: 420px;
+            height: 60px;
+            background: rgba(18, 18, 24, 0.92);
+            backdrop-filter: blur(24px) saturate(190%);
+            -webkit-backdrop-filter: blur(24px) saturate(190%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 9999px;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55), 
+                        0 0 0 1px rgba(255, 255, 255, 0.05),
+                        0 0 24px rgba(99, 102, 241, 0.15);
+            display: flex;
+            align-items: center;
+            padding: 0 14px;
+            gap: 12px;
+            -webkit-app-region: drag;
+            transition: border-color 0.25s ease, box-shadow 0.25s ease;
+        }
+
+        .capsule.listening {
+            border-color: rgba(34, 197, 94, 0.35);
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55), 
+                        0 0 24px rgba(34, 197, 94, 0.2);
+        }
+
+        .capsule.transcribing {
+            border-color: rgba(168, 85, 247, 0.4);
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55), 
+                        0 0 24px rgba(168, 85, 247, 0.25);
+        }
+
+        /* ── Left Mic & Wave ────────────────────────────────────────── */
+        .mic-section {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+            -webkit-app-region: no-drag;
+        }
+
+        .mic-icon-wrapper {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(34, 197, 94, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #4ade80;
+            position: relative;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+
+        .capsule.transcribing .mic-icon-wrapper {
+            background: rgba(168, 85, 247, 0.15);
+            color: #c084fc;
+        }
+
+        .pulse-ring {
+            position: absolute;
+            inset: -3px;
+            border-radius: 50%;
+            border: 1.5px solid currentColor;
+            opacity: 0.6;
+            animation: pulse-wave 1.8s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+        }
+
+        @keyframes pulse-wave {
+            0% { transform: scale(0.9); opacity: 0.8; }
+            70% { transform: scale(1.3); opacity: 0; }
+            100% { transform: scale(1.3); opacity: 0; }
+        }
+
+        #miniWaveCanvas {
+            width: 36px;
+            height: 24px;
             display: block;
-            /* Logical CSS size — actual pixel buffer is scaled by DPR in JS */
-            width: 160px;
-            height: 44px;
+        }
+
+        /* ── Center Live Content ────────────────────────────────────── */
+        .content-section {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 2px;
+            overflow: hidden;
+        }
+
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #22c55e;
+            box-shadow: 0 0 6px #22c55e;
+            transition: background 0.25s ease;
+        }
+
+        .capsule.transcribing .status-dot {
+            background: #a855f7;
+            box-shadow: 0 0 6px #a855f7;
+        }
+
+        .status-text {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: #a1a1aa;
+        }
+
+        .live-text {
+            font-size: 13.5px;
+            font-weight: 500;
+            color: #ffffff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.25;
+            transition: color 0.2s ease;
+        }
+
+        .live-text.placeholder {
+            color: #71717a;
+            font-style: italic;
+        }
+
+        /* ── Right Actions ─────────────────────────────────────────── */
+        .actions-section {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+            -webkit-app-region: no-drag;
+        }
+
+        .action-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #e4e4e7;
+            cursor: pointer;
+            border-radius: 9999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 5px 9px;
+            gap: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background: rgba(255, 255, 255, 0.16);
+            color: #ffffff;
+            transform: translateY(-0.5px);
+        }
+
+        .action-btn.finish-btn {
+            background: #22c55e;
+            color: #052e16;
+            border-color: #4ade80;
+            font-weight: 700;
+        }
+
+        .action-btn.finish-btn:hover {
+            background: #16a34a;
+            color: #ffffff;
+        }
+
+        .hotkey-badge {
+            font-size: 10px;
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            padding: 3px 6px;
+            border-radius: 4px;
+            color: #a1a1aa;
+            font-family: ui-monospace, monospace;
         }
     </style>
 </head>
-
 <body>
-    <canvas id="waveCanvas"></canvas>
+    <div class="capsule listening" id="capsule">
+        <!-- Mic & Wave Visualizer -->
+        <div class="mic-section">
+            <div class="mic-icon-wrapper">
+                <span class="pulse-ring"></span>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" x2="12" y1="19" y2="22"></line>
+                </svg>
+            </div>
+            <canvas id="miniWaveCanvas"></canvas>
+        </div>
+
+        <!-- Center live words -->
+        <div class="content-section">
+            <div class="status-row">
+                <span class="status-dot" id="statusDot"></span>
+                <span class="status-text" id="statusLabel">Listening...</span>
+            </div>
+            <div class="live-text placeholder" id="liveText">Speak now... words appear here</div>
+        </div>
+
+        <!-- Right Quick Done / Hotkey -->
+        <div class="actions-section">
+            <button class="action-btn finish-btn" id="btnDone" title="Click to finish and paste">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span>Done</span>
+            </button>
+            <span class="hotkey-badge" id="indicatorHotkey">Ctrl+Space</span>
+        </div>
+    </div>
 
     <script>
-        // ── Logical dimensions (CSS / drawing coords) ─────────────────────────
-        const W = 160;
-        const H = 44;
+        const capsule = document.getElementById('capsule');
+        const statusLabel = document.getElementById('statusLabel');
+        const liveText = document.getElementById('liveText');
+        const indicatorHotkey = document.getElementById('indicatorHotkey');
+        const btnDone = document.getElementById('btnDone');
+        const canvas = document.getElementById('miniWaveCanvas');
+        const ctx = canvas.getContext('2d');
 
-        const canvas = document.getElementById('waveCanvas');
-        const ctx    = canvas.getContext('2d');
-
-        // Scale the backing buffer for the screen's pixel density
+        // Scale canvas for retina display
         const DPR = window.devicePixelRatio || 1;
-        canvas.width  = Math.round(W * DPR);
-        canvas.height = Math.round(H * DPR);
+        canvas.width = Math.round(36 * DPR);
+        canvas.height = Math.round(24 * DPR);
         ctx.scale(DPR, DPR);
 
-        // ── State ─────────────────────────────────────────────────────────────
-        let mode     = 'recording'; // 'recording' | 'transcribing'
-        let liveData = null;        // plain array from mic AnalyserNode
+        let liveAudioData = null;
+        let isTranscribing = false;
 
-        // Timer state (kept for API compat; not rendered visually)
-        let startTime      = null;
-        let timerInterval  = null;
-        let transcribeStart = null;
-        let elapsedSecs    = 0;
+        // Draw animated soundwave
+        const BAR_COUNT = 4;
+        const BAR_W = 2.5;
+        const BAR_GAP = 3.5;
+        const bars = new Array(BAR_COUNT).fill(4);
 
-        // ── Bar config (in logical px) ────────────────────────────────────────
-        const BAR_COUNT  = 5;
-        const BAR_W      = 3;
-        const BAR_GAP    = 5;
-        const BAR_MIN_H  = 3;
-        const BAR_MAX_H  = 22;
-        const BAR_R      = 1.5;
-        const TOTAL_BARS_W = BAR_COUNT * BAR_W + (BAR_COUNT - 1) * BAR_GAP;
-        const BARS_X     = (W - TOTAL_BARS_W) / 2;
-        const BARS_Y     = H / 2;
+        function renderWave(timestamp) {
+            ctx.clearRect(0, 0, 36, 24);
 
-        // Per-bar smoothed heights
-        const smoothed = new Array(BAR_COUNT).fill(BAR_MIN_H);
-
-        // ── Draw loop ─────────────────────────────────────────────────────────
-        function drawFrame(timestamp) {
-            ctx.clearRect(0, 0, W, H);
-            drawPill();
-            updateBars(timestamp);
-            drawBars();
-            requestAnimationFrame(drawFrame);
-        }
-
-        // ── Pill background ───────────────────────────────────────────────────
-        function drawPill() {
-            const r = H / 2;
-
-            // Fill
-            ctx.beginPath();
-            pillPath(0, 0, W, H, r);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
-            ctx.fill();
-
-            // Hair-line border
-            ctx.beginPath();
-            pillPath(0.5, 0.5, W - 1, H - 1, r - 0.5);
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.07)';
-            ctx.lineWidth   = 0.5;
-            ctx.stroke();
-        }
-
-        function pillPath(x, y, w, h, r) {
-            ctx.moveTo(x + r, y);
-            ctx.lineTo(x + w - r, y);
-            ctx.arcTo(x + w, y,     x + w, y + r,     r);
-            ctx.lineTo(x + w, y + h - r);
-            ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-            ctx.lineTo(x + r, y + h);
-            ctx.arcTo(x,     y + h, x,     y + h - r, r);
-            ctx.lineTo(x,    y + r);
-            ctx.arcTo(x,     y,     x + r, y,         r);
-            ctx.closePath();
-        }
-
-        // ── Bar animation ─────────────────────────────────────────────────────
-        function updateBars(timestamp) {
-            if (mode === 'recording') {
-                if (liveData && liveData.length > 0) {
-                    const bucketSize = Math.floor(liveData.length / BAR_COUNT);
-                    for (let i = 0; i < BAR_COUNT; i++) {
-                        let sum = 0;
-                        const offset = i * bucketSize;
-                        for (let j = 0; j < bucketSize; j++) {
-                            sum += Math.abs((liveData[offset + j] / 128.0) - 1.0);
-                        }
-                        const avg    = sum / bucketSize;
-                        const target = Math.min(BAR_MIN_H + avg * (BAR_MAX_H - BAR_MIN_H) * 6.0, BAR_MAX_H);
-                        // Smooth rise and fall — fluid, not snappy
-                        const alpha  = target > smoothed[i] ? 0.25 : 0.12;
-                        smoothed[i] += alpha * (target - smoothed[i]);
+            if (liveAudioData && liveAudioData.length > 0) {
+                const step = Math.floor(liveAudioData.length / BAR_COUNT);
+                for (let i = 0; i < BAR_COUNT; i++) {
+                    let sum = 0;
+                    for (let j = 0; j < step; j++) {
+                        sum += Math.abs((liveAudioData[i * step + j] / 128.0) - 1.0);
                     }
-                } else {
-                    // Waiting for first data — very gentle idle breathe
-                    const breath = BAR_MIN_H + (Math.sin(timestamp / 700) * 0.5 + 0.5) * 3;
-                    for (let i = 0; i < BAR_COUNT; i++) {
-                        smoothed[i] += 0.04 * (breath - smoothed[i]);
-                    }
+                    const avg = sum / step;
+                    const target = Math.min(3 + avg * 45, 18);
+                    bars[i] += 0.25 * (target - bars[i]);
                 }
             } else {
-                // Transcribing — slow travelling sine wave across bars
                 for (let i = 0; i < BAR_COUNT; i++) {
-                    const phase  = (i / (BAR_COUNT - 1)) * Math.PI * 2 - timestamp / 950;
-                    const target = BAR_MIN_H + (Math.sin(phase) * 0.5 + 0.5) * 10;
-                    smoothed[i] += 0.07 * (target - smoothed[i]);
+                    const wave = 3 + (Math.sin(timestamp / 300 + i) * 0.5 + 0.5) * 6;
+                    bars[i] += 0.1 * (wave - bars[i]);
                 }
             }
-        }
 
-        function drawBars() {
-            const color = mode === 'recording' ? '#6BB589' : '#ADADAD';
-
+            ctx.fillStyle = isTranscribing ? '#c084fc' : '#4ade80';
             for (let i = 0; i < BAR_COUNT; i++) {
-                const bh = smoothed[i];
-                const x  = BARS_X + i * (BAR_W + BAR_GAP);
-                const y  = BARS_Y - bh / 2;
-
+                const h = Math.max(3, bars[i]);
+                const x = i * (BAR_W + BAR_GAP) + 4;
+                const y = (24 - h) / 2;
                 ctx.beginPath();
-                barPath(x, y, BAR_W, bh, BAR_R);
-                ctx.fillStyle = color;
+                ctx.roundRect ? ctx.roundRect(x, y, BAR_W, h, 1.5) : ctx.rect(x, y, BAR_W, h);
                 ctx.fill();
             }
+
+            requestAnimationFrame(renderWave);
+        }
+        requestAnimationFrame(renderWave);
+
+        // ── Public API called from main process ──────────────────────
+
+        function setLiveText(text) {
+            if (!text || text.trim().length === 0) return;
+            liveText.textContent = text.trim();
+            liveText.classList.remove('placeholder');
         }
 
-        function barPath(x, y, w, h, r) {
-            const rr = Math.min(r, w / 2, h / 2);
-            ctx.moveTo(x + rr, y);
-            ctx.lineTo(x + w - rr, y);
-            ctx.arcTo(x + w, y,     x + w, y + rr,     rr);
-            ctx.lineTo(x + w, y + h - rr);
-            ctx.arcTo(x + w, y + h, x + w - rr, y + h, rr);
-            ctx.lineTo(x + rr, y + h);
-            ctx.arcTo(x,     y + h, x,     y + h - rr, rr);
-            ctx.lineTo(x,    y + rr);
-            ctx.arcTo(x,     y,     x + rr, y,         rr);
-            ctx.closePath();
+        function clearLiveText() {
+            liveText.textContent = 'Speak now... words appear here';
+            liveText.classList.add('placeholder');
         }
 
-        // ── Public API (called via executeJavaScript from main.js) ────────────
-
-        function updateWaveform(data) {
-            liveData = data;
-        }
-
-        function startTimer() {
-            mode      = 'recording';
-            liveData  = null;
-            startTime = Date.now();
-            elapsedSecs = 0;
-            if (timerInterval) clearInterval(timerInterval);
-            timerInterval = setInterval(() => {
-                elapsedSecs = Math.floor((Date.now() - startTime) / 1000);
-            }, 200);
-        }
-
-        function stopTimer() {
-            if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+        function setRecordingMode(hotkey) {
+            isTranscribing = false;
+            capsule.className = 'capsule listening';
+            statusLabel.textContent = 'Listening...';
+            if (hotkey) indicatorHotkey.textContent = hotkey;
+            clearLiveText();
         }
 
         function setTranscribingMode() {
-            mode           = 'transcribing';
-            liveData       = null;
-            transcribeStart = Date.now();
-            if (timerInterval) clearInterval(timerInterval);
-            timerInterval = setInterval(() => {
-                elapsedSecs = Math.floor((Date.now() - transcribeStart) / 1000);
-            }, 200);
+            isTranscribing = true;
+            capsule.className = 'capsule transcribing';
+            statusLabel.textContent = 'Transcribing...';
         }
 
-        function setRecordingMode() {
-            mode        = 'recording';
-            liveData    = null;
-            elapsedSecs = 0;
+        function setDoneMode() {
+            isTranscribing = false;
+            capsule.className = 'capsule';
+            statusLabel.textContent = '✓ Finished';
         }
 
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) stopTimer(); else startTimer();
+        function updateWaveform(data) {
+            liveAudioData = data;
+        }
+
+        // When user clicks Done button on capsule
+        btnDone.addEventListener('click', () => {
+            // Send IPC to main to finish recording
+            try {
+                if (window.electronAPI && window.electronAPI.toggleRecording) {
+                    window.electronAPI.toggleRecording();
+                }
+            } catch (e) {}
         });
-
-        // Kick off render loop
-        requestAnimationFrame(drawFrame);
     </script>
 </body>
-
 </html>
