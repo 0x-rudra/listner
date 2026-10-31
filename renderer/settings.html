@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ezspeak</title>
+    <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+    <div class="titlebar">
+        <div class="titlebar-drag-region">
+            <div class="titlebar-title">
+                <span class="titlebar-dot"></span>
+                <span>ezspeak</span>
+            </div>
+        </div>
+        <div class="window-controls">
+            <button class="window-control" id="minimize-btn" title="Minimize">
+                <svg width="10" height="10" viewBox="0 0 10 10">
+                    <path d="M 0,5 10,5" stroke="currentColor" stroke-width="1.2"/>
+                </svg>
+            </button>
+            <button class="window-control" id="close-btn" title="Close (minimize to tray)">
+                <svg width="10" height="10" viewBox="0 0 10 10">
+                    <path d="M 0,0 10,10 M 10,0 0,10" stroke="currentColor" stroke-width="1.2"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <!-- Top App Bar -->
+        <header class="app-header">
+            <div class="header-brand">
+                <div class="logo-mark">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                        <line x1="12" x2="12" y1="19" y2="22"></line>
+                    </svg>
+                </div>
+                <div>
+                    <h1>ezspeak</h1>
+                    <p class="tagline">Voice to text • Auto-paste anywhere</p>
+                </div>
+            </div>
+            <div class="status-indicator-pill" id="appStatusPill">
+                <span class="pulse-indicator" id="statusDot"></span>
+                <span id="appStatusText">Ready</span>
+            </div>
+        </header>
+
+        <!-- Tab navigation -->
+        <div class="tab-nav">
+            <button class="tab-btn active" id="tab-app" data-tab="app">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <span>App</span>
+            </button>
+            <button class="tab-btn" id="tab-settings" data-tab="settings">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+                <span>Settings</span>
+            </button>
+            <button class="tab-btn" id="tab-history" data-tab="history">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <span>History</span>
+            </button>
+        </div>
+
+        <!-- 1. Main Application Dashboard Panel -->
+        <div class="tab-panel" id="panel-app">
+            <div class="hero-card">
+                <div class="mic-glow-container">
+                    <button class="hero-mic-btn" id="heroMicBtn" title="Click to start/stop dictating">
+                        <svg class="mic-icon" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                            <line x1="12" x2="12" y1="19" y2="22"></line>
+                        </svg>
+                        <div class="spinner-overlay" id="heroSpinner"></div>
+                    </button>
+                </div>
+                <div class="hero-prompt-text" id="heroPromptText">Click to start dictation</div>
+                
+                <div class="shortcut-banner">
+                    <span>Global hotkey:</span>
+                    <kbd id="dashboardHotkeyDisplay">Right Ctrl</kbd>
+                    <span class="sub-hint">Press anywhere to dictate & paste</span>
+                </div>
+            </div>
+
+            <div class="dashboard-cards-grid">
+                <div class="dashboard-card" id="cardEngine">
+                    <div class="card-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+                        </svg>
+                    </div>
+                    <div class="card-info">
+                        <span class="card-label">Transcription Engine</span>
+                        <span class="card-value" id="dashEngineMode">Local Whisper</span>
+                    </div>
+                    <button class="card-action-btn" id="btnGoToSettingsEngine" title="Open Settings">
+                        <span>⚙️</span>
+                    </button>
+                </div>
+
+                <div class="dashboard-card" id="cardMic">
+                    <div class="card-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                            <line x1="12" x2="12" y1="19" y2="22"></line>
+                        </svg>
+                    </div>
+                    <div class="card-info">
+                        <span class="card-label">Audio Input</span>
+                        <span class="card-value" id="dashMicName">Default Microphone</span>
+                    </div>
+                    <button class="card-action-btn" id="btnGoToSettingsMic" title="Configure Microphone">
+                        <span>🎙️</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Recent Dictation Snippet -->
+            <div class="recent-dictation-card">
+                <div class="recent-header">
+                    <span class="recent-title">Latest Dictation</span>
+                    <div class="recent-actions">
+                        <button class="icon-action-btn" id="dashCopyLatestBtn" title="Copy to clipboard">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                            <span id="copyLatestLabel">Copy</span>
+                        </button>
+                        <button class="text-link-btn" id="dashViewHistoryLink">History →</button>
+                    </div>
+                </div>
+                <div class="recent-body" id="dashLatestText">
+                    No transcriptions yet. Press your hotkey or click the microphone button above to speak!
+                </div>
+            </div>
+
+            <!-- Settings Launcher Button -->
+            <div class="app-footer-actions">
+                <button class="settings-launcher-btn" id="btnOpenSettingsPage">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                    <span>Configure in Settings</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. Settings tab panel -->
+        <div class="tab-panel" id="panel-settings" style="display: none;">
+            <div class="panel-top-nav">
+                <button class="back-link-btn" id="backToAppFromSettings">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                    <span>Back to App</span>
+                </button>
+                <span class="panel-section-title">Settings & Preferences</span>
+            </div>
+
+            <div class="settings-section">
+                <div class="form-group">
+                    <label for="transcriptionProvider">Transcription Provider</label>
+                    <div class="provider-container">
+                        <select id="transcriptionProvider" class="provider-select">
+                            <option value="online">OpenAI Whisper API</option>
+                            <option value="offline">Local (Offline)</option>
+                        </select>
+                        
+                        <!-- API Key input - shown only for online mode -->
+                        <div class="provider-input" id="apiKeyContainer">
+                            <input 
+                                type="password" 
+                                id="apiKey" 
+                                placeholder="sk-..." 
+                                autocomplete="off"
+                            />
+                            <button type="button" class="toggle-visibility" id="toggleVisibility" title="Toggle visibility">
+                                <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                                <svg class="eye-off-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <!-- Download icon box - shown only for offline mode when model not downloaded -->
+                        <button type="button" class="download-icon-box" id="downloadModelBtn" style="display: none;" title="Download model (~150MB)">
+                            <svg class="download-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            <svg class="spinner-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="display: none;">
+                                <circle cx="12" cy="12" r="10" opacity="0.25"></circle>
+                                <path d="M12 2a10 10 0 0 1 10 10" opacity="1">
+                                    <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/>
+                                </path>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <!-- Dynamic help text -->
+                    <p class="help-text" id="providerHelp">
+                        <span id="helpOnline">Uses OpenAI's cloud API. Requires API key and internet connection. <a href="https://platform.openai.com/api-keys" target="_blank">Get API key</a></span>
+                        <span id="helpOffline" style="display: none;">Runs locally on your device. Private and works offline. Uses ~150MB model.</span>
+                    </p>
+                </div>
+
+                <div class="form-group">
+                    <label for="microphone">Microphone Device</label>
+                    <select id="microphone">
+                        <option value="default">Default Microphone</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="hotkey">Recording Hotkey</label>
+                    <input 
+                        type="text" 
+                        id="hotkey" 
+                        placeholder="Click and press any key..."
+                        readonly
+                    />
+                    <p class="help-text">
+                        Click the field and press any key to set it as your global recording hotkey
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. History tab panel -->
+        <div class="tab-panel" id="panel-history" style="display: none;">
+            <div class="panel-top-nav">
+                <button class="back-link-btn" id="backToAppFromHistory">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                    <span>Back to App</span>
+                </button>
+                <div class="history-actions-inline">
+                    <span class="history-count" id="historyCount">0 transcriptions</span>
+                    <button class="clear-history-btn" id="clearHistoryBtn" title="Clear all history">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                            <path d="M10 11v6"></path>
+                            <path d="M14 11v6"></path>
+                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+                        </svg>
+                        Clear all
+                    </button>
+                </div>
+            </div>
+            
+            <div class="history-list" id="historyList">
+            </div>
+        </div>
+
+        <div class="toast" id="toast">Changes saved</div>
+    </div>
+
+    <script src="microphone-selector.js"></script>
+    <script src="recording.js"></script>
+    <script src="settings.js"></script>
+</body>
+</html>

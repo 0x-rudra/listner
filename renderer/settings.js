@@ -1,0 +1,873 @@
+// Key mapping from keyboard events to uiohook key names
+const keyToUiohook = {
+    // Function keys
+    'F1': 'F1', 'F2': 'F2', 'F3': 'F3', 'F4': 'F4', 'F5': 'F5', 'F6': 'F6',
+    'F7': 'F7', 'F8': 'F8', 'F9': 'F9', 'F10': 'F10', 'F11': 'F11', 'F12': 'F12',
+    'F13': 'F13', 'F14': 'F14', 'F15': 'F15', 'F16': 'F16', 'F17': 'F17',
+    'F18': 'F18', 'F19': 'F19', 'F20': 'F20', 'F21': 'F21', 'F22': 'F22',
+    'F23': 'F23', 'F24': 'F24',
+
+    // Modifier keys
+    'ControlLeft': 'Ctrl', 'ControlRight': 'CtrlRight',
+    'AltLeft': 'Alt', 'AltRight': 'AltRight',
+    'ShiftLeft': 'Shift', 'ShiftRight': 'ShiftRight',
+    'MetaLeft': 'Meta', 'MetaRight': 'MetaRight',
+
+    // Letters
+    'KeyA': 'A', 'KeyB': 'B', 'KeyC': 'C', 'KeyD': 'D', 'KeyE': 'E',
+    'KeyF': 'F', 'KeyG': 'G', 'KeyH': 'H', 'KeyI': 'I', 'KeyJ': 'J',
+    'KeyK': 'K', 'KeyL': 'L', 'KeyM': 'M', 'KeyN': 'N', 'KeyO': 'O',
+    'KeyP': 'P', 'KeyQ': 'Q', 'KeyR': 'R', 'KeyS': 'S', 'KeyT': 'T',
+    'KeyU': 'U', 'KeyV': 'V', 'KeyW': 'W', 'KeyX': 'X', 'KeyY': 'Y',
+    'KeyZ': 'Z',
+
+    // Numbers
+    'Digit0': '0', 'Digit1': '1', 'Digit2': '2', 'Digit3': '3', 'Digit4': '4',
+    'Digit5': '5', 'Digit6': '6', 'Digit7': '7', 'Digit8': '8', 'Digit9': '9',
+
+    // Symbols and punctuation
+    'Space': 'Space', 'Enter': 'Enter', 'Escape': 'Escape',
+    'Tab': 'Tab', 'CapsLock': 'CapsLock',
+    'Backspace': 'Backspace', 'Delete': 'Delete',
+    'Insert': 'Insert', 'Home': 'Home', 'End': 'End',
+    'PageUp': 'PageUp', 'PageDown': 'PageDown',
+    'ArrowUp': 'ArrowUp', 'ArrowDown': 'ArrowDown',
+    'ArrowLeft': 'ArrowLeft', 'ArrowRight': 'ArrowRight',
+    'Backquote': 'Backquote', 'Minus': 'Minus', 'Equal': 'Equal',
+    'BracketLeft': 'BracketLeft', 'BracketRight': 'BracketRight',
+    'Backslash': 'Backslash', 'Semicolon': 'Semicolon',
+    'Quote': 'Quote', 'Comma': 'Comma', 'Period': 'Period',
+    'Slash': 'Slash', 'PrintScreen': 'PrintScreen',
+    'ScrollLock': 'ScrollLock', 'NumLock': 'NumLock',
+
+    // Numpad
+    'Numpad0': 'Numpad0', 'Numpad1': 'Numpad1', 'Numpad2': 'Numpad2',
+    'Numpad3': 'Numpad3', 'Numpad4': 'Numpad4', 'Numpad5': 'Numpad5',
+    'Numpad6': 'Numpad6', 'Numpad7': 'Numpad7', 'Numpad8': 'Numpad8',
+    'Numpad9': 'Numpad9', 'NumpadAdd': 'NumpadAdd', 'NumpadSubtract': 'NumpadSubtract',
+    'NumpadMultiply': 'NumpadMultiply', 'NumpadDivide': 'NumpadDivide',
+    'NumpadDecimal': 'NumpadDecimal', 'NumpadEnter': 'NumpadEnter',
+    'NumpadArrowUp': 'NumpadArrowUp', 'NumpadArrowDown': 'NumpadArrowDown',
+    'NumpadArrowLeft': 'NumpadArrowLeft', 'NumpadArrowRight': 'NumpadArrowRight',
+    'NumpadHome': 'NumpadHome', 'NumpadEnd': 'NumpadEnd',
+    'NumpadPageUp': 'NumpadPageUp', 'NumpadPageDown': 'NumpadPageDown',
+    'NumpadInsert': 'NumpadInsert', 'NumpadDelete': 'NumpadDelete'
+};
+
+// Display friendly names for keys (macOS-friendly)
+const keyDisplayNames = {
+    // Function keys
+    'F1': 'F1', 'F2': 'F2', 'F3': 'F3', 'F4': 'F4', 'F5': 'F5', 'F6': 'F6',
+    'F7': 'F7', 'F8': 'F8', 'F9': 'F9', 'F10': 'F10', 'F11': 'F11', 'F12': 'F12',
+    'F13': 'F13', 'F14': 'F14', 'F15': 'F15', 'F16': 'F16', 'F17': 'F17',
+    'F18': 'F18', 'F19': 'F19', 'F20': 'F20', 'F21': 'F21', 'F22': 'F22',
+    'F23': 'F23', 'F24': 'F24',
+
+    // Modifier keys (macOS terminology)
+    'Ctrl': 'Ctrl',
+    'CtrlRight': 'Right Ctrl',
+    'Alt': 'Alt',
+    'AltRight': 'Right Alt',
+    'Shift': 'Shift',
+    'ShiftRight': 'Right Shift',
+    'Meta': 'Left Command',  // macOS Command key
+    'MetaRight': 'Right Command',
+
+    // Letters
+    'A': 'A', 'B': 'B', 'C': 'C', 'D': 'D', 'E': 'E', 'F': 'F', 'G': 'G', 'H': 'H',
+    'I': 'I', 'J': 'J', 'K': 'K', 'L': 'L', 'M': 'M', 'N': 'N', 'O': 'O', 'P': 'P',
+    'Q': 'Q', 'R': 'R', 'S': 'S', 'T': 'T', 'U': 'U', 'V': 'V', 'W': 'W', 'X': 'X',
+    'Y': 'Y', 'Z': 'Z',
+
+    // Numbers
+    '0': '0', '1': '1', '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7',
+    '8': '8', '9': '9',
+
+    // Symbols and punctuation
+    'Space': 'Space',
+    'Enter': 'Enter',
+    'Escape': 'Esc',
+    'Tab': 'Tab',
+    'CapsLock': 'Caps Lock',
+    'Backspace': 'Backspace',
+    'Delete': 'Delete',
+    'Insert': 'Insert',
+    'Home': 'Home',
+    'End': 'End',
+    'PageUp': 'Page Up',
+    'PageDown': 'Page Down',
+    'ArrowUp': '↑',
+    'ArrowDown': '↓',
+    'ArrowLeft': '←',
+    'ArrowRight': '→',
+    'Backquote': '`',
+    'Minus': '-',
+    'Equal': '=',
+    'BracketLeft': '[',
+    'BracketRight': ']',
+    'Backslash': '\\',
+    'Semicolon': ';',
+    'Quote': "'",
+    'Comma': ',',
+    'Period': '.',
+    'Slash': '/',
+    'PrintScreen': 'Print Screen',
+    'ScrollLock': 'Scroll Lock',
+    'NumLock': 'Num Lock',
+
+    // Numpad
+    'Numpad0': 'Num 0', 'Numpad1': 'Num 1', 'Numpad2': 'Num 2', 'Numpad3': 'Num 3',
+    'Numpad4': 'Num 4', 'Numpad5': 'Num 5', 'Numpad6': 'Num 6', 'Numpad7': 'Num 7',
+    'Numpad8': 'Num 8', 'Numpad9': 'Num 9', 'NumpadAdd': 'Num +', 'NumpadSubtract': 'Num -',
+    'NumpadMultiply': 'Num *', 'NumpadDivide': 'Num ÷', 'NumpadDecimal': 'Num .', 'NumpadEnter': 'Num Enter',
+    'NumpadArrowUp': 'Num ↑', 'NumpadArrowDown': 'Num ↓', 'NumpadArrowLeft': 'Num ←', 'NumpadArrowRight': 'Num →',
+    'NumpadHome': 'Num Home', 'NumpadEnd': 'Num End', 'NumpadPageUp': 'Num Page Up', 'NumpadPageDown': 'Num Page Down',
+    'NumpadInsert': 'Num Insert', 'NumpadDelete': 'Num Delete'
+};
+
+// Load current settings
+async function loadSettings() {
+    try {
+        const apiKey = await window.electronAPI.getApiKey();
+        const hotkey = await window.electronAPI.getHotkey();
+        const transcriptionMode = await window.electronAPI.getTranscriptionMode();
+
+        const apiKeyInput = document.getElementById('apiKey');
+        const hotkeyInput = document.getElementById('hotkey');
+        const providerSelect = document.getElementById('transcriptionProvider');
+
+        if (apiKeyInput) {
+            apiKeyInput.value = apiKey || '';
+        }
+
+        const displayName = hotkey.split('+')
+            .map(part => keyDisplayNames[part] || part)
+            .join(' + ');
+
+        if (hotkeyInput) {
+            hotkeyInput.value = displayName;
+        }
+
+        const dashHotkey = document.getElementById('dashboardHotkeyDisplay');
+        if (dashHotkey) {
+            dashHotkey.textContent = displayName;
+        }
+
+        const dashEngine = document.getElementById('dashEngineMode');
+        if (dashEngine) {
+            dashEngine.textContent = transcriptionMode === 'offline' ? 'Local Whisper (Offline)' : 'OpenAI Whisper (Cloud)';
+        }
+
+        // Set transcription provider
+        if (providerSelect) {
+            providerSelect.value = transcriptionMode || 'online';
+            updateProviderUI(transcriptionMode || 'online');
+        }
+
+        await loadLatestDictationSnippet();
+    } catch (error) {
+        console.error('Error loading settings:', error);
+    }
+}
+
+// Update UI based on selected provider
+async function updateProviderUI(mode) {
+    const apiKeyContainer = document.getElementById('apiKeyContainer');
+    const downloadBtn = document.getElementById('downloadModelBtn');
+    const helpOnline = document.getElementById('helpOnline');
+    const helpOffline = document.getElementById('helpOffline');
+    const dashEngine = document.getElementById('dashEngineMode');
+
+    if (dashEngine) {
+        dashEngine.textContent = mode === 'offline' ? 'Local Whisper (Offline)' : 'OpenAI Whisper (Cloud)';
+    }
+
+    if (mode === 'offline') {
+        // Hide API key input for offline mode
+        if (apiKeyContainer) apiKeyContainer.style.display = 'none';
+        if (helpOnline) helpOnline.style.display = 'none';
+        if (helpOffline) helpOffline.style.display = 'inline';
+
+        // Check if model is downloaded
+        try {
+            const isDownloaded = await window.electronAPI.checkModelDownloaded();
+            if (downloadBtn) {
+                downloadBtn.style.display = isDownloaded ? 'none' : 'block';
+            }
+        } catch (error) {
+            console.error('Error checking model status:', error);
+        }
+    } else {
+        // Show API key input for online mode
+        if (apiKeyContainer) apiKeyContainer.style.display = 'flex';
+        if (downloadBtn) downloadBtn.style.display = 'none';
+        if (helpOnline) helpOnline.style.display = 'inline';
+        if (helpOffline) helpOffline.style.display = 'none';
+    }
+}
+
+// Auto-save API key
+async function saveApiKey() {
+    try {
+        // By this point the input listener has already stripped any whitespace
+        const apiKey = document.getElementById('apiKey').value;
+
+        if (!apiKey) {
+            return; // Field is empty — nothing to validate
+        }
+
+        if (!apiKey.startsWith('sk-')) {
+            showToast('Invalid API key — must start with sk-', 'error');
+            return;
+        }
+
+        await window.electronAPI.setApiKey(apiKey);
+        showToast('API key saved');
+    } catch (error) {
+        console.error('Error saving API key:', error);
+        showToast('Failed to save API key', 'error');
+    }
+}
+
+// Show toast notification
+// @param {string} message - Text to display
+// @param {'success'|'error'} [type='success'] - Visual variant
+function showToast(message, type = 'success') {
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+
+    // Clear any in-flight timer so back-to-back toasts restart cleanly
+    if (showToast._timer) {
+        clearTimeout(showToast._timer);
+    }
+
+    toast.textContent = message;
+    toast.classList.remove('toast--success', 'toast--error');
+    toast.classList.add(`toast--${type}`, 'show');
+
+    showToast._timer = setTimeout(() => {
+        toast.classList.remove('show');
+        showToast._timer = null;
+    }, type === 'error' ? 4000 : 1500);
+}
+
+// Toggle password visibility
+function setupToggleVisibility() {
+    const toggleBtn = document.getElementById('toggleVisibility');
+    const apiKeyInput = document.getElementById('apiKey');
+
+    if (toggleBtn && apiKeyInput) {
+        const eyeIcon = toggleBtn.querySelector('.eye-icon');
+        const eyeOffIcon = toggleBtn.querySelector('.eye-off-icon');
+
+        toggleBtn.addEventListener('click', () => {
+            if (apiKeyInput.type === 'password') {
+                apiKeyInput.type = 'text';
+                eyeIcon.style.display = 'none';
+                eyeOffIcon.style.display = 'block';
+            } else {
+                apiKeyInput.type = 'password';
+                eyeIcon.style.display = 'block';
+                eyeOffIcon.style.display = 'none';
+            }
+        });
+    }
+}
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    loadSettings();
+    setupToggleVisibility();
+});
+
+// Setup window controls
+function setupWindowControls() {
+    const minimizeBtn = document.getElementById('minimize-btn');
+    const closeBtn = document.getElementById('close-btn');
+
+    if (minimizeBtn) {
+        minimizeBtn.addEventListener('click', () => {
+            window.electronAPI.minimizeWindow();
+        });
+    }
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            window.electronAPI.closeSettings();
+        });
+    }
+}
+
+// Setup hotkey capture
+function setupHotkeyCapture() {
+    const hotkeyInput = document.getElementById('hotkey');
+    if (!hotkeyInput) return;
+
+    let isCapturing = false;
+    let pressedKeys = new Set();
+    let maxCombo = new Set(); // Tracks highest number of concurrent keys in this session
+
+    hotkeyInput.addEventListener('click', () => {
+        if (isCapturing) return;
+
+        isCapturing = true;
+        hotkeyInput.value = 'Press any key...';
+        hotkeyInput.style.borderColor = '#6BB589';
+        hotkeyInput.style.background = '#2d2d30';
+        // Clear previous state for a new capture session
+        pressedKeys.clear();
+        maxCombo.clear();
+        // Pause the global hotkey listener so pressing the current hotkey
+        // doesn't trigger recording while the user is setting a new one
+        window.electronAPI.pauseHotkey();
+    });
+
+    hotkeyInput.addEventListener('keydown', (e) => {
+        if (!isCapturing) return;
+
+        e.preventDefault();
+
+        const rawKey = e.code;
+        const uiohookKey = keyToUiohook[rawKey];
+
+        if (!uiohookKey) {
+            return;
+        }
+
+        // Add to active set
+        pressedKeys.add(uiohookKey);
+
+        // If current set is larger than max, update max
+        if (pressedKeys.size > maxCombo.size) {
+            maxCombo = new Set(pressedKeys);
+        } else if (pressedKeys.size === maxCombo.size) {
+            // Even if same size, we update if the keys are different (e.g. A->B rollover)
+            // But usually maxCombo should be "accumulative" in intent?
+            // Actually, if user releases A then presses B, it's a new combo.
+            // If user holds A and presses B, it's A+B.
+            // The logic: "Max Combo" is the peak of the mountain.
+            maxCombo = new Set(pressedKeys);
+        }
+
+        // Display CURRENT held keys to show responsiveness
+        const currentKeys = Array.from(pressedKeys);
+
+        // Sort modifiers first for nice display
+        const sortedKeys = sortKeys(currentKeys);
+
+        const displayName = sortedKeys
+            .map(part => keyDisplayNames[part] || part)
+            .join(' + ');
+
+        hotkeyInput.value = displayName;
+    });
+
+    hotkeyInput.addEventListener('keyup', async (e) => {
+        if (!isCapturing) return;
+
+        const rawKey = e.code;
+        const uiohookKey = keyToUiohook[rawKey];
+
+        if (uiohookKey) {
+            pressedKeys.delete(uiohookKey);
+        }
+
+        // If all keys are released, we commit the MAX combo derived during the session
+        if (pressedKeys.size === 0 && maxCombo.size > 0) {
+            await commitHotkey(Array.from(maxCombo));
+            pressedKeys.clear();
+            maxCombo.clear();
+            isCapturing = false;
+            hotkeyInput.style.borderColor = '#3e3e42';
+            hotkeyInput.style.background = '#252526';
+            hotkeyInput.blur(); // Unfocus to prevent accidental restarts
+        }
+    });
+
+    async function commitHotkey(keys) {
+        // Sort keys for consistent storage
+        const sortedKeys = sortKeys(keys);
+        const combo = sortedKeys.join('+');
+
+        try {
+            // setHotkey restarts monitoring in main; resumeHotkey clears the paused flag
+            await window.electronAPI.setHotkey(combo);
+            window.electronAPI.resumeHotkey();
+
+            const displayName = sortedKeys
+                .map(part => keyDisplayNames[part] || part)
+                .join(' + ');
+
+            hotkeyInput.value = displayName;
+            const dashHotkey = document.getElementById('dashboardHotkeyDisplay');
+            if (dashHotkey) {
+                dashHotkey.textContent = displayName;
+            }
+            showToast('Hotkey saved');
+        } catch (error) {
+            console.error('Error setting hotkey:', error);
+            window.electronAPI.resumeHotkey();
+            hotkeyInput.value = 'Error - try again';
+        }
+    }
+
+    function sortKeys(keys) {
+        const modifiers = ['Ctrl', 'CtrlRight', 'Alt', 'AltRight', 'Shift', 'ShiftRight', 'Meta', 'MetaRight'];
+        return keys.sort((a, b) => {
+            const aMod = modifiers.includes(a);
+            const bMod = modifiers.includes(b);
+            if (aMod && !bMod) return -1;
+            if (!aMod && bMod) return 1;
+            return 0;
+        });
+    }
+
+    // Handle blur (click away)
+    hotkeyInput.addEventListener('blur', async () => {
+        if (isCapturing) {
+            // Capture cancelled — resume hotkey monitoring and revert display
+            isCapturing = false;
+            pressedKeys.clear();
+            maxCombo.clear();
+            hotkeyInput.style.borderColor = '#3e3e42';
+            hotkeyInput.style.background = '#252526';
+            window.electronAPI.resumeHotkey();
+            const current = await window.electronAPI.getHotkey();
+            hotkeyInput.style.borderColor = '#3e3e42';
+            hotkeyInput.style.background = '#252526';
+            isCapturing = false;
+        }
+    });
+}
+
+// Setup transcription provider handler
+function setupTranscriptionProvider() {
+    const providerSelect = document.getElementById('transcriptionProvider');
+
+    if (providerSelect) {
+        providerSelect.addEventListener('change', async () => {
+            const mode = providerSelect.value;
+            try {
+                await window.electronAPI.setTranscriptionMode(mode);
+                await updateProviderUI(mode);
+
+                const modeLabel = mode === 'offline' ? 'Local (Offline)' : 'OpenAI API';
+                showToast(`Provider changed to ${modeLabel}`);
+            } catch (error) {
+                console.error('Error setting transcription mode:', error);
+            }
+        });
+    }
+}
+
+// Setup model download button
+function setupModelDownload() {
+    const downloadBtn = document.getElementById('downloadModelBtn');
+
+    if (downloadBtn) {
+        downloadBtn.addEventListener('click', async () => {
+            const downloadIcon = downloadBtn.querySelector('.download-icon');
+            const spinnerIcon = downloadBtn.querySelector('.spinner-icon');
+
+            try {
+                // Disable button and show spinner
+                downloadBtn.disabled = true;
+                downloadIcon.style.display = 'none';
+                spinnerIcon.style.display = 'block';
+
+                showToast('Downloading model (~150MB)...');
+
+                // Trigger download
+                const result = await window.electronAPI.downloadModel();
+
+                if (result.success) {
+                    showToast('Model downloaded successfully!');
+                    // Hide download button and reset icons
+                    downloadIcon.style.display = 'block';
+                    spinnerIcon.style.display = 'none';
+                    downloadBtn.disabled = false;
+                    downloadBtn.style.display = 'none';
+                } else {
+                    throw new Error(result.error || 'Download failed');
+                }
+            } catch (error) {
+                console.error('Error downloading model:', error);
+                showToast('Download failed: ' + error.message);
+                // Restore download icon
+                downloadBtn.disabled = false;
+                downloadIcon.style.display = 'block';
+                spinnerIcon.style.display = 'none';
+            }
+        });
+    }
+}
+
+
+// ─── Dashboard & Tab navigation ──────────────────────────────────────────────
+async function loadLatestDictationSnippet() {
+    const textEl = document.getElementById('dashLatestText');
+    if (!textEl) return;
+    try {
+        const history = await window.electronAPI.getHistory();
+        if (history && history.length > 0) {
+            textEl.textContent = `"${history[0].text}"`;
+            textEl.style.color = '#e4e4e7';
+        } else {
+            textEl.textContent = 'No transcriptions yet. Press your hotkey or click the microphone button above to speak!';
+            textEl.style.color = '#71717a';
+        }
+    } catch (e) {
+        console.error('Failed to load latest dictation:', e);
+    }
+}
+
+function updateRecordingState(status) {
+    const micBtn = document.getElementById('heroMicBtn');
+    const prompt = document.getElementById('heroPromptText');
+    const pill = document.getElementById('appStatusPill');
+    const statusText = document.getElementById('appStatusText');
+
+    if (!micBtn || !prompt || !pill || !statusText) return;
+
+    if (status === 'recording') {
+        micBtn.className = 'hero-mic-btn recording';
+        prompt.textContent = 'Listening... Click or release hotkey to finish';
+        pill.className = 'status-indicator-pill recording';
+        statusText.textContent = 'Recording...';
+    } else if (status === 'processing') {
+        micBtn.className = 'hero-mic-btn processing';
+        prompt.textContent = 'Transcribing with Whisper...';
+        pill.className = 'status-indicator-pill processing';
+        statusText.textContent = 'Transcribing...';
+    } else {
+        micBtn.className = 'hero-mic-btn';
+        prompt.textContent = 'Click to start dictation';
+        pill.className = 'status-indicator-pill';
+        statusText.textContent = 'Ready';
+        loadLatestDictationSnippet();
+    }
+}
+
+function setupTabs() {
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const panels = {
+        app: document.getElementById('panel-app'),
+        settings: document.getElementById('panel-settings'),
+        history: document.getElementById('panel-history')
+    };
+
+    function switchTab(target) {
+        tabBtns.forEach(b => {
+            if (b.dataset.tab === target) {
+                b.classList.add('active');
+            } else {
+                b.classList.remove('active');
+            }
+        });
+
+        Object.entries(panels).forEach(([key, panel]) => {
+            if (panel) {
+                panel.style.display = key === target ? 'flex' : 'none';
+            }
+        });
+
+        if (target === 'history') {
+            loadAndRenderHistory();
+        } else if (target === 'app') {
+            loadLatestDictationSnippet();
+        }
+    }
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            switchTab(btn.dataset.tab);
+        });
+    });
+
+    // Wire up quick buttons navigating to settings
+    const btnOpenSettings = document.getElementById('btnOpenSettingsPage');
+    if (btnOpenSettings) {
+        btnOpenSettings.addEventListener('click', () => switchTab('settings'));
+    }
+
+    const btnGoToEngine = document.getElementById('btnGoToSettingsEngine');
+    if (btnGoToEngine) {
+        btnGoToEngine.addEventListener('click', () => switchTab('settings'));
+    }
+
+    const btnGoToMic = document.getElementById('btnGoToSettingsMic');
+    if (btnGoToMic) {
+        btnGoToMic.addEventListener('click', () => switchTab('settings'));
+    }
+
+    // Back to App buttons
+    const backSettings = document.getElementById('backToAppFromSettings');
+    if (backSettings) {
+        backSettings.addEventListener('click', () => switchTab('app'));
+    }
+
+    const backHistory = document.getElementById('backToAppFromHistory');
+    if (backHistory) {
+        backHistory.addEventListener('click', () => switchTab('app'));
+    }
+
+    const linkHistory = document.getElementById('dashViewHistoryLink');
+    if (linkHistory) {
+        linkHistory.addEventListener('click', () => switchTab('history'));
+    }
+
+    // Hero mic button click to toggle recording
+    const heroMicBtn = document.getElementById('heroMicBtn');
+    if (heroMicBtn) {
+        heroMicBtn.addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.toggleRecording) {
+                window.electronAPI.toggleRecording();
+            }
+        });
+    }
+
+    // Copy latest snippet button
+    const copyLatestBtn = document.getElementById('dashCopyLatestBtn');
+    if (copyLatestBtn) {
+        copyLatestBtn.addEventListener('click', () => {
+            const textEl = document.getElementById('dashLatestText');
+            if (!textEl) return;
+            const textToCopy = textEl.textContent.replace(/^"|"$/g, '').trim();
+            if (textToCopy && !textToCopy.startsWith('No transcriptions yet')) {
+                navigator.clipboard.writeText(textToCopy);
+                const label = document.getElementById('copyLatestLabel');
+                if (label) label.textContent = 'Copied!';
+                showToast('Copied to clipboard');
+                setTimeout(() => {
+                    if (label) label.textContent = 'Copy';
+                }, 1500);
+            }
+        });
+    }
+
+    // Listen for tab navigation from main process (e.g. from tray menu)
+    if (window.electronAPI && window.electronAPI.onNavigateTab) {
+        window.electronAPI.onNavigateTab((tab) => {
+            switchTab(tab);
+        });
+    }
+
+    // Listen for live recording status changes
+    if (window.electronAPI && window.electronAPI.onRecordingStatusChanged) {
+        window.electronAPI.onRecordingStatusChanged((status) => {
+            updateRecordingState(status);
+        });
+    }
+}
+
+// ─── History feature ──────────────────────────────────────────────────────────
+function formatHistoryDate(isoString) {
+    const date = new Date(isoString);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = date.toDateString() === yesterday.toDateString();
+
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    if (isToday) return `Today at ${timeStr}`;
+    if (isYesterday) return `Yesterday at ${timeStr}`;
+
+    return date.toLocaleDateString([], {
+        month: 'short',
+        day: 'numeric',
+        year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+    }) + ` at ${timeStr}`;
+}
+
+async function loadAndRenderHistory() {
+    const list = document.getElementById('historyList');
+    const countEl = document.getElementById('historyCount');
+    if (!list) return;
+
+    let history = [];
+    try {
+        history = await window.electronAPI.getHistory();
+    } catch (e) {
+        console.error('Failed to load history:', e);
+    }
+
+    // Update count label
+    if (countEl) {
+        const n = history.length;
+        countEl.textContent = n === 1 ? '1 transcription' : `${n} transcriptions`;
+    }
+
+    // Remove any previously rendered entries
+    Array.from(list.querySelectorAll('.history-entry, .history-empty-card')).forEach(el => el.remove());
+
+    if (history.length === 0) {
+        const card = document.createElement('div');
+        card.className = 'history-entry history-empty-card';
+        card.innerHTML = `
+            <div class="history-entry-meta">
+                <span class="history-entry-date">No transcriptions yet</span>
+                <span class="history-copy-hint"></span>
+            </div>
+            <div class="history-entry-text history-entry-text--muted">Your transcription history will appear here</div>
+        `;
+        list.appendChild(card);
+        return;
+    }
+
+    history.forEach(entry => {
+        const el = document.createElement('div');
+        el.className = 'history-entry';
+        el.dataset.id = entry.id;
+        el.innerHTML = `
+            <div class="history-entry-meta">
+                <span class="history-entry-date">${formatHistoryDate(entry.timestamp)}</span>
+                <span class="history-copy-hint">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    Copy
+                </span>
+            </div>
+            <div class="history-entry-text">${escapeHtml(entry.text)}</div>
+        `;
+
+        el.addEventListener('click', () => copyHistoryEntry(el, entry.text));
+        list.appendChild(el);
+    });
+}
+
+function escapeHtml(str) {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function copyHistoryEntry(el, text) {
+    navigator.clipboard.writeText(text).then(() => {
+        // Visual flash
+        el.classList.add('flash');
+        setTimeout(() => el.classList.remove('flash'), 600);
+        showToast('Copied to clipboard');
+    }).catch(err => {
+        console.error('Clipboard write failed:', err);
+        showToast('Failed to copy', 'error');
+    });
+}
+
+function setupClearHistory() {
+    const btn = document.getElementById('clearHistoryBtn');
+    if (!btn) return;
+
+    btn.addEventListener('click', async () => {
+        try {
+            await window.electronAPI.clearHistory();
+            await loadAndRenderHistory();
+            showToast('History cleared');
+        } catch (e) {
+            console.error('Failed to clear history:', e);
+            showToast('Failed to clear history', 'error');
+        }
+    });
+}
+
+// Setup auto-save for API key and microphone
+document.addEventListener('DOMContentLoaded', () => {
+    const apiKeyInput = document.getElementById('apiKey');
+    const micSelect = document.getElementById('microphone');
+
+    // Setup window controls
+    setupWindowControls();
+
+    // Setup tabs (Settings / History)
+    setupTabs();
+
+    // Setup history clear button
+    setupClearHistory();
+
+    // Refresh history list and dashboard live whenever a new transcription comes in
+    if (window.electronAPI.onHistoryUpdated) {
+        window.electronAPI.onHistoryUpdated(() => {
+            loadLatestDictationSnippet();
+            const historyPanel = document.getElementById('panel-history');
+            if (historyPanel && historyPanel.style.display !== 'none') {
+                loadAndRenderHistory();
+            }
+        });
+    }
+
+    // Setup hotkey capture
+    setupHotkeyCapture();
+
+    // Setup transcription provider
+    setupTranscriptionProvider();
+
+    // Setup model download
+    setupModelDownload();
+
+    // Surface transcription errors (e.g. invalid API key, network failure) as toasts
+    if (window.electronAPI.onError) {
+        window.electronAPI.onError((message) => {
+            showToast(message, 'error');
+        });
+    }
+
+    // Auto-save API key on Enter or blur (when user clicks away)
+    if (apiKeyInput) {
+        // Strip whitespace in real time so the user sees the clean value as they type/paste
+        apiKeyInput.addEventListener('input', () => {
+            const cleaned = apiKeyInput.value.replace(/\s/g, '');
+            if (cleaned !== apiKeyInput.value) {
+                apiKeyInput.value = cleaned;
+            }
+        });
+
+        apiKeyInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                saveApiKey();
+                apiKeyInput.blur();
+            }
+        });
+
+        apiKeyInput.addEventListener('blur', () => {
+            saveApiKey();
+        });
+    }
+
+    // Auto-save microphone selection when changed
+    if (micSelect) {
+        micSelect.addEventListener('change', async () => {
+            try {
+                await window.electronAPI.setMicrophone(micSelect.value);
+                const dashMic = document.getElementById('dashMicName');
+                if (dashMic && micSelect.selectedIndex >= 0) {
+                    dashMic.textContent = micSelect.options[micSelect.selectedIndex].text;
+                }
+                showToast('Changes saved');
+            } catch (error) {
+                console.error('Error saving microphone:', error);
+            }
+        });
+    }
+
+    // Close window on ESC key (but not when capturing hotkey)
+    document.addEventListener('keydown', (e) => {
+        const hotkeyInput = document.getElementById('hotkey');
+        if (e.key === 'Escape' && document.activeElement !== hotkeyInput) {
+            window.electronAPI.closeSettings();
+        }
+    });
+
+    // Make external links open in default browser
+    document.addEventListener('click', (e) => {
+        if (e.target.tagName === 'A' && e.target.href) {
+            e.preventDefault();
+            window.electronAPI.openExternal(e.target.href);
+        }
+    });
+});
+
