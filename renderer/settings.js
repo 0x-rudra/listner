@@ -54,189 +54,22 @@ const keyToUiohook = {
     'NumpadInsert': 'NumpadInsert', 'NumpadDelete': 'NumpadDelete'
 };
 
-// Display friendly names for keys (macOS-friendly)
+// Display friendly names for keys
 const keyDisplayNames = {
-    // Function keys
     'F1': 'F1', 'F2': 'F2', 'F3': 'F3', 'F4': 'F4', 'F5': 'F5', 'F6': 'F6',
     'F7': 'F7', 'F8': 'F8', 'F9': 'F9', 'F10': 'F10', 'F11': 'F11', 'F12': 'F12',
-    'F13': 'F13', 'F14': 'F14', 'F15': 'F15', 'F16': 'F16', 'F17': 'F17',
-    'F18': 'F18', 'F19': 'F19', 'F20': 'F20', 'F21': 'F21', 'F22': 'F22',
-    'F23': 'F23', 'F24': 'F24',
-
-    // Modifier keys (macOS terminology)
-    'Ctrl': 'Ctrl',
-    'CtrlRight': 'Right Ctrl',
-    'Alt': 'Alt',
-    'AltRight': 'Right Alt',
-    'Shift': 'Shift',
-    'ShiftRight': 'Right Shift',
-    'Meta': 'Left Command',  // macOS Command key
-    'MetaRight': 'Right Command',
-
-    // Letters
-    'A': 'A', 'B': 'B', 'C': 'C', 'D': 'D', 'E': 'E', 'F': 'F', 'G': 'G', 'H': 'H',
-    'I': 'I', 'J': 'J', 'K': 'K', 'L': 'L', 'M': 'M', 'N': 'N', 'O': 'O', 'P': 'P',
-    'Q': 'Q', 'R': 'R', 'S': 'S', 'T': 'T', 'U': 'U', 'V': 'V', 'W': 'W', 'X': 'X',
-    'Y': 'Y', 'Z': 'Z',
-
-    // Numbers
-    '0': '0', '1': '1', '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7',
-    '8': '8', '9': '9',
-
-    // Symbols and punctuation
-    'Space': 'Space',
-    'Enter': 'Enter',
-    'Escape': 'Esc',
-    'Tab': 'Tab',
-    'CapsLock': 'Caps Lock',
-    'Backspace': 'Backspace',
-    'Delete': 'Delete',
-    'Insert': 'Insert',
-    'Home': 'Home',
-    'End': 'End',
-    'PageUp': 'Page Up',
-    'PageDown': 'Page Down',
-    'ArrowUp': '↑',
-    'ArrowDown': '↓',
-    'ArrowLeft': '←',
-    'ArrowRight': '→',
-    'Backquote': '`',
-    'Minus': '-',
-    'Equal': '=',
-    'BracketLeft': '[',
-    'BracketRight': ']',
-    'Backslash': '\\',
-    'Semicolon': ';',
-    'Quote': "'",
-    'Comma': ',',
-    'Period': '.',
-    'Slash': '/',
-    'PrintScreen': 'Print Screen',
-    'ScrollLock': 'Scroll Lock',
-    'NumLock': 'Num Lock',
-
-    // Numpad
-    'Numpad0': 'Num 0', 'Numpad1': 'Num 1', 'Numpad2': 'Num 2', 'Numpad3': 'Num 3',
-    'Numpad4': 'Num 4', 'Numpad5': 'Num 5', 'Numpad6': 'Num 6', 'Numpad7': 'Num 7',
-    'Numpad8': 'Num 8', 'Numpad9': 'Num 9', 'NumpadAdd': 'Num +', 'NumpadSubtract': 'Num -',
-    'NumpadMultiply': 'Num *', 'NumpadDivide': 'Num ÷', 'NumpadDecimal': 'Num .', 'NumpadEnter': 'Num Enter',
-    'NumpadArrowUp': 'Num ↑', 'NumpadArrowDown': 'Num ↓', 'NumpadArrowLeft': 'Num ←', 'NumpadArrowRight': 'Num →',
-    'NumpadHome': 'Num Home', 'NumpadEnd': 'Num End', 'NumpadPageUp': 'Num Page Up', 'NumpadPageDown': 'Num Page Down',
-    'NumpadInsert': 'Num Insert', 'NumpadDelete': 'Num Delete'
+    'Ctrl': 'Ctrl', 'CtrlRight': 'Right Ctrl',
+    'Alt': 'Alt', 'AltRight': 'Right Alt',
+    'Shift': 'Shift', 'ShiftRight': 'Right Shift',
+    'Meta': 'Left Cmd', 'MetaRight': 'Right Cmd',
+    'Space': 'Space', 'Enter': 'Enter', 'Escape': 'Esc'
 };
 
-// Load current settings
-async function loadSettings() {
-    try {
-        const apiKey = await window.electronAPI.getApiKey();
-        const hotkey = await window.electronAPI.getHotkey();
-        const transcriptionMode = await window.electronAPI.getTranscriptionMode();
-
-        const apiKeyInput = document.getElementById('apiKey');
-        const hotkeyInput = document.getElementById('hotkey');
-        const providerSelect = document.getElementById('transcriptionProvider');
-
-        if (apiKeyInput) {
-            apiKeyInput.value = apiKey || '';
-        }
-
-        const displayName = hotkey.split('+')
-            .map(part => keyDisplayNames[part] || part)
-            .join(' + ');
-
-        if (hotkeyInput) {
-            hotkeyInput.value = displayName;
-        }
-
-        const dashHotkey = document.getElementById('dashboardHotkeyDisplay');
-        if (dashHotkey) {
-            dashHotkey.textContent = displayName;
-        }
-
-        const dashEngine = document.getElementById('dashEngineMode');
-        if (dashEngine) {
-            dashEngine.textContent = transcriptionMode === 'offline' ? 'Local Whisper (Offline)' : 'OpenAI Whisper (Cloud)';
-        }
-
-        // Set transcription provider
-        if (providerSelect) {
-            providerSelect.value = transcriptionMode || 'online';
-            updateProviderUI(transcriptionMode || 'online');
-        }
-
-        await loadLatestDictationSnippet();
-    } catch (error) {
-        console.error('Error loading settings:', error);
-    }
-}
-
-// Update UI based on selected provider
-async function updateProviderUI(mode) {
-    const apiKeyContainer = document.getElementById('apiKeyContainer');
-    const downloadBtn = document.getElementById('downloadModelBtn');
-    const helpOnline = document.getElementById('helpOnline');
-    const helpOffline = document.getElementById('helpOffline');
-    const dashEngine = document.getElementById('dashEngineMode');
-
-    if (dashEngine) {
-        dashEngine.textContent = mode === 'offline' ? 'Local Whisper (Offline)' : 'OpenAI Whisper (Cloud)';
-    }
-
-    if (mode === 'offline') {
-        // Hide API key input for offline mode
-        if (apiKeyContainer) apiKeyContainer.style.display = 'none';
-        if (helpOnline) helpOnline.style.display = 'none';
-        if (helpOffline) helpOffline.style.display = 'inline';
-
-        // Check if model is downloaded
-        try {
-            const isDownloaded = await window.electronAPI.checkModelDownloaded();
-            if (downloadBtn) {
-                downloadBtn.style.display = isDownloaded ? 'none' : 'block';
-            }
-        } catch (error) {
-            console.error('Error checking model status:', error);
-        }
-    } else {
-        // Show API key input for online mode
-        if (apiKeyContainer) apiKeyContainer.style.display = 'flex';
-        if (downloadBtn) downloadBtn.style.display = 'none';
-        if (helpOnline) helpOnline.style.display = 'inline';
-        if (helpOffline) helpOffline.style.display = 'none';
-    }
-}
-
-// Auto-save API key
-async function saveApiKey() {
-    try {
-        // By this point the input listener has already stripped any whitespace
-        const apiKey = document.getElementById('apiKey').value;
-
-        if (!apiKey) {
-            return; // Field is empty — nothing to validate
-        }
-
-        if (!apiKey.startsWith('sk-')) {
-            showToast('Invalid API key — must start with sk-', 'error');
-            return;
-        }
-
-        await window.electronAPI.setApiKey(apiKey);
-        showToast('API key saved');
-    } catch (error) {
-        console.error('Error saving API key:', error);
-        showToast('Failed to save API key', 'error');
-    }
-}
-
-// Show toast notification
-// @param {string} message - Text to display
-// @param {'success'|'error'} [type='success'] - Visual variant
+// ─── Toast notification ──────────────────────────────────────────────────────
 function showToast(message, type = 'success') {
     const toast = document.getElementById('toast');
     if (!toast) return;
 
-    // Clear any in-flight timer so back-to-back toasts restart cleanly
     if (showToast._timer) {
         clearTimeout(showToast._timer);
     }
@@ -248,39 +81,416 @@ function showToast(message, type = 'success') {
     showToast._timer = setTimeout(() => {
         toast.classList.remove('show');
         showToast._timer = null;
-    }, type === 'error' ? 4000 : 1500);
+    }, type === 'error' ? 4000 : 1800);
 }
 
-// Toggle password visibility
-function setupToggleVisibility() {
-    const toggleBtn = document.getElementById('toggleVisibility');
-    const apiKeyInput = document.getElementById('apiKey');
+// ─── Password toggle buttons ────────────────────────────────────────────────
+function setupPasswordToggles() {
+    const toggles = document.querySelectorAll('.toggle-visibility');
+    toggles.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetId = btn.dataset.target;
+            const input = document.getElementById(targetId);
+            if (!input) return;
 
-    if (toggleBtn && apiKeyInput) {
-        const eyeIcon = toggleBtn.querySelector('.eye-icon');
-        const eyeOffIcon = toggleBtn.querySelector('.eye-off-icon');
+            const eyeIcon = btn.querySelector('.eye-icon');
+            const eyeOffIcon = btn.querySelector('.eye-off-icon');
 
-        toggleBtn.addEventListener('click', () => {
-            if (apiKeyInput.type === 'password') {
-                apiKeyInput.type = 'text';
-                eyeIcon.style.display = 'none';
-                eyeOffIcon.style.display = 'block';
+            if (input.type === 'password') {
+                input.type = 'text';
+                if (eyeIcon) eyeIcon.style.display = 'none';
+                if (eyeOffIcon) eyeOffIcon.style.display = 'block';
             } else {
-                apiKeyInput.type = 'password';
-                eyeIcon.style.display = 'block';
-                eyeOffIcon.style.display = 'none';
+                input.type = 'password';
+                if (eyeIcon) eyeIcon.style.display = 'block';
+                if (eyeOffIcon) eyeOffIcon.style.display = 'none';
+            }
+        });
+    });
+}
+
+// ─── Load & Sync Settings ───────────────────────────────────────────────────
+let currentSettings = null;
+
+async function loadSettings() {
+    try {
+        currentSettings = await window.electronAPI.getAllSettings();
+        const hotkey = await window.electronAPI.getHotkey();
+
+        const hotkeyInput = document.getElementById('hotkey');
+        const dashHotkey = document.getElementById('dashboardHotkeyDisplay');
+        const providerSelect = document.getElementById('transcriptionProvider');
+
+        // Hotkey display
+        if (hotkey) {
+            const displayName = hotkey.split('+')
+                .map(part => keyDisplayNames[part] || part)
+                .join(' + ');
+
+            if (hotkeyInput) hotkeyInput.value = displayName;
+            if (dashHotkey) dashHotkey.textContent = displayName;
+        }
+
+        // Fill BYOK Inputs
+        const openaiKey = document.getElementById('openaiApiKey');
+        const openaiModel = document.getElementById('openaiModel');
+        if (openaiKey) openaiKey.value = currentSettings.openai?.apiKey || '';
+        if (openaiModel && currentSettings.openai?.model) openaiModel.value = currentSettings.openai.model;
+
+        const groqKey = document.getElementById('groqApiKey');
+        const groqModel = document.getElementById('groqModel');
+        if (groqKey) groqKey.value = currentSettings.groq?.apiKey || '';
+        if (groqModel && currentSettings.groq?.model) groqModel.value = currentSettings.groq.model;
+
+        const customEndpoint = document.getElementById('customEndpoint');
+        const customApiKey = document.getElementById('customApiKey');
+        const customModel = document.getElementById('customModel');
+        if (customEndpoint) customEndpoint.value = currentSettings.custom?.endpoint || '';
+        if (customApiKey) customApiKey.value = currentSettings.custom?.apiKey || '';
+        if (customModel) customModel.value = currentSettings.custom?.model || 'whisper-1';
+
+        // Determine active provider selector value
+        let activeVal = 'openai';
+        if (currentSettings.transcriptionMode === 'offline') {
+            activeVal = 'offline';
+        } else {
+            activeVal = currentSettings.cloudProvider || 'openai';
+        }
+
+        if (providerSelect) {
+            providerSelect.value = activeVal;
+            updateProviderUI(activeVal, false);
+        }
+
+        // Load local models
+        await refreshLocalModels();
+
+        // Update dashboard snippet
+        await loadLatestDictationSnippet();
+    } catch (error) {
+        console.error('Error loading settings:', error);
+    }
+}
+
+// ─── Update UI on Provider Change ────────────────────────────────────────────
+async function updateProviderUI(selectedProvider, saveToMain = true) {
+    const cards = {
+        openai: document.getElementById('providerCardOpenAI'),
+        groq: document.getElementById('providerCardGroq'),
+        custom: document.getElementById('providerCardCustom'),
+        offline: document.getElementById('providerCardOffline')
+    };
+
+    Object.entries(cards).forEach(([key, card]) => {
+        if (card) card.style.display = key === selectedProvider ? 'flex' : 'none';
+    });
+
+    // Update Dashboard Engine display
+    updateDashboardEngineText(selectedProvider);
+
+    if (saveToMain) {
+        try {
+            if (selectedProvider === 'offline') {
+                await window.electronAPI.setTranscriptionMode('offline');
+            } else {
+                await window.electronAPI.setTranscriptionMode('cloud');
+                await window.electronAPI.setCloudProvider(selectedProvider);
+            }
+            showToast(`Engine set to ${getProviderLabel(selectedProvider)}`);
+        } catch (e) {
+            console.error('Failed to update provider:', e);
+        }
+    }
+}
+
+function getProviderLabel(provider) {
+    if (provider === 'groq') return 'Groq Whisper';
+    if (provider === 'custom') return 'Custom Endpoint';
+    if (provider === 'offline') return 'Local Whisper';
+    return 'OpenAI Whisper';
+}
+
+function updateDashboardEngineText(provider) {
+    const dashEngine = document.getElementById('dashEngineMode');
+    if (!dashEngine) return;
+
+    if (provider === 'offline') {
+        const localSelect = document.getElementById('localModelSelect');
+        const modelName = localSelect ? localSelect.value : 'base.en';
+        dashEngine.textContent = `Local (${modelName})`;
+    } else if (provider === 'groq') {
+        const groqModel = document.getElementById('groqModel');
+        const name = (groqModel && groqModel.value.includes('turbo')) ? 'Turbo' : 'Large-v3';
+        dashEngine.textContent = `Groq (${name})`;
+    } else if (provider === 'custom') {
+        const customModel = document.getElementById('customModel');
+        dashEngine.textContent = `Custom (${customModel?.value || 'whisper-1'})`;
+    } else {
+        dashEngine.textContent = 'OpenAI (whisper-1)';
+    }
+}
+
+// ─── Local Model Management & Import ─────────────────────────────────────────
+let cachedLocalModels = [];
+
+async function refreshLocalModels() {
+    const select = document.getElementById('localModelSelect');
+    if (!select) return;
+
+    try {
+        cachedLocalModels = await window.electronAPI.getLocalModels();
+        select.innerHTML = '';
+
+        const standardGroup = document.createElement('optgroup');
+        standardGroup.label = 'Standard Models';
+
+        const customGroup = document.createElement('optgroup');
+        customGroup.label = 'Imported Custom Models';
+
+        let activeModel = null;
+
+        cachedLocalModels.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.name;
+            const statusTag = m.isDownloaded ? `[Ready • ${m.sizeMB}]` : `[Available • ${m.sizeApprox}]`;
+            opt.textContent = `${m.name} ${statusTag}`;
+
+            if (m.isCustom) {
+                customGroup.appendChild(opt);
+            } else {
+                standardGroup.appendChild(opt);
+            }
+
+            if (m.isActive) {
+                activeModel = m;
+            }
+        });
+
+        select.appendChild(standardGroup);
+        if (customGroup.children.length > 0) {
+            select.appendChild(customGroup);
+        }
+
+        if (activeModel) {
+            select.value = activeModel.name;
+        } else if (cachedLocalModels.length > 0) {
+            select.value = cachedLocalModels[0].name;
+            activeModel = cachedLocalModels[0];
+        }
+
+        updateLocalModelCard(activeModel || cachedLocalModels[0]);
+    } catch (e) {
+        console.error('Error refreshing local models:', e);
+    }
+}
+
+function updateLocalModelCard(model) {
+    const badge = document.getElementById('localModelStatusBadge');
+    const downloadBtn = document.getElementById('btnDownloadStandardModel');
+    const deleteBtn = document.getElementById('btnDeleteCurrentModel');
+
+    if (!model) return;
+
+    if (badge) {
+        if (model.isDownloaded) {
+            badge.className = 'status-badge ready';
+            badge.textContent = `✓ Ready • ${model.sizeMB}`;
+        } else {
+            badge.className = 'status-badge pending';
+            badge.textContent = 'Not downloaded';
+        }
+    }
+
+    if (downloadBtn) {
+        if (!model.isDownloaded && !model.isCustom) {
+            downloadBtn.style.display = 'flex';
+            const btnText = document.getElementById('downloadBtnText');
+            if (btnText) btnText.textContent = `Download (${model.sizeApprox || ''})`;
+        } else {
+            downloadBtn.style.display = 'none';
+        }
+    }
+
+    if (deleteBtn) {
+        // Allow deleting downloaded or custom models
+        deleteBtn.style.display = model.isDownloaded ? 'flex' : 'none';
+    }
+}
+
+// ─── Setup Model Actions ─────────────────────────────────────────────────────
+function setupModelActions() {
+    const select = document.getElementById('localModelSelect');
+    const importBtn = document.getElementById('btnImportLocalModel');
+    const downloadBtn = document.getElementById('btnDownloadStandardModel');
+    const deleteBtn = document.getElementById('btnDeleteCurrentModel');
+
+    // On Model Dropdown change
+    if (select) {
+        select.addEventListener('change', async () => {
+            const selectedName = select.value;
+            const model = cachedLocalModels.find(m => m.name === selectedName);
+            if (model) {
+                await window.electronAPI.setLocalModel(model.path || model.name);
+                updateLocalModelCard(model);
+                updateDashboardEngineText('offline');
+                showToast(`Local model set to ${model.name}`);
+            }
+        });
+    }
+
+    // Import Model Button (Native File Dialog)
+    if (importBtn) {
+        importBtn.addEventListener('click', async () => {
+            try {
+                showToast('Select a .bin Whisper model file...');
+                const result = await window.electronAPI.importLocalModel();
+
+                if (result.canceled) {
+                    return;
+                }
+
+                if (result.success && result.model) {
+                    showToast(`Imported model: ${result.model.name} (${result.model.sizeMB})`);
+                    await refreshLocalModels();
+                    updateDashboardEngineText('offline');
+                } else {
+                    showToast(`Import failed: ${result.error || 'Unknown error'}`, 'error');
+                }
+            } catch (err) {
+                console.error('Import error:', err);
+                showToast(`Import failed: ${err.message}`, 'error');
+            }
+        });
+    }
+
+    // Download Standard Model Button
+    if (downloadBtn) {
+        downloadBtn.addEventListener('click', async () => {
+            const selectedName = select.value;
+            const progressContainer = document.getElementById('downloadProgressContainer');
+            const progressFill = document.getElementById('downloadProgressFill');
+            const progressPercent = document.getElementById('downloadProgressPercent');
+            const progressLabel = document.getElementById('downloadProgressLabel');
+
+            try {
+                downloadBtn.disabled = true;
+                if (progressContainer) progressContainer.style.display = 'block';
+                if (progressFill) progressFill.style.width = '0%';
+                if (progressPercent) progressPercent.textContent = '0%';
+                if (progressLabel) progressLabel.textContent = `Downloading ${selectedName}...`;
+
+                showToast(`Starting download for ${selectedName}...`);
+
+                const res = await window.electronAPI.downloadModel(selectedName);
+
+                if (res.success) {
+                    showToast(`${selectedName} downloaded successfully!`);
+                    if (progressContainer) progressContainer.style.display = 'none';
+                    await refreshLocalModels();
+                    updateDashboardEngineText('offline');
+                } else {
+                    throw new Error(res.error || 'Download failed');
+                }
+            } catch (err) {
+                console.error('Download error:', err);
+                showToast(`Download failed: ${err.message}`, 'error');
+                if (progressContainer) progressContainer.style.display = 'none';
+            } finally {
+                downloadBtn.disabled = false;
+            }
+        });
+    }
+
+    // Listen for progress events from main
+    if (window.electronAPI.onDownloadProgress) {
+        window.electronAPI.onDownloadProgress(p => {
+            const progressFill = document.getElementById('downloadProgressFill');
+            const progressPercent = document.getElementById('downloadProgressPercent');
+            const progressLabel = document.getElementById('downloadProgressLabel');
+
+            if (progressFill) progressFill.style.width = p.percent + '%';
+            if (progressPercent) progressPercent.textContent = p.percent + '%';
+            if (progressLabel) progressLabel.textContent = `Downloading (${p.downloadedMB} / ${p.totalMB} MB)...`;
+        });
+    }
+
+    // Delete Model Button
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', async () => {
+            const selectedName = select.value;
+            const model = cachedLocalModels.find(m => m.name === selectedName);
+            if (!model || !model.path) return;
+
+            if (confirm(`Are you sure you want to delete ${model.name} to free disk space?`)) {
+                try {
+                    await window.electronAPI.deleteLocalModel(model.path);
+                    showToast(`Deleted ${model.name}`);
+                    await refreshLocalModels();
+                    updateDashboardEngineText('offline');
+                } catch (e) {
+                    showToast(`Failed to delete: ${e.message}`, 'error');
+                }
             }
         });
     }
 }
 
-// Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    loadSettings();
-    setupToggleVisibility();
-});
+// ─── Auto-Save BYOK Providers on Change ──────────────────────────────────────
+function setupBYOKAutoSave() {
+    const saveAll = async () => {
+        const payload = {
+            openai: {
+                apiKey: document.getElementById('openaiApiKey')?.value.trim() || '',
+                model: document.getElementById('openaiModel')?.value || 'whisper-1'
+            },
+            groq: {
+                apiKey: document.getElementById('groqApiKey')?.value.trim() || '',
+                model: document.getElementById('groqModel')?.value || 'whisper-large-v3-turbo'
+            },
+            custom: {
+                endpoint: document.getElementById('customEndpoint')?.value.trim() || '',
+                apiKey: document.getElementById('customApiKey')?.value.trim() || '',
+                model: document.getElementById('customModel')?.value.trim() || 'whisper-1'
+            }
+        };
 
-// Setup window controls
+        try {
+            await window.electronAPI.saveProviderSettings(payload);
+            const provider = document.getElementById('transcriptionProvider')?.value;
+            updateDashboardEngineText(provider);
+            showToast('Changes saved');
+        } catch (e) {
+            console.error('Failed to save BYOK settings:', e);
+        }
+    };
+
+    // Attach listeners
+    const inputs = [
+        'openaiApiKey', 'openaiModel',
+        'groqApiKey', 'groqModel',
+        'customEndpoint', 'customApiKey', 'customModel'
+    ];
+
+    inputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('change', saveAll);
+            if (el.tagName === 'INPUT') {
+                el.addEventListener('blur', saveAll);
+            }
+        }
+    });
+
+    // Provider dropdown listener
+    const providerSelect = document.getElementById('transcriptionProvider');
+    if (providerSelect) {
+        providerSelect.addEventListener('change', () => {
+            updateProviderUI(providerSelect.value, true);
+        });
+    }
+}
+
+// ─── Window Controls ─────────────────────────────────────────────────────────
 function setupWindowControls() {
     const minimizeBtn = document.getElementById('minimize-btn');
     const closeBtn = document.getElementById('close-btn');
@@ -297,211 +507,6 @@ function setupWindowControls() {
         });
     }
 }
-
-// Setup hotkey capture
-function setupHotkeyCapture() {
-    const hotkeyInput = document.getElementById('hotkey');
-    if (!hotkeyInput) return;
-
-    let isCapturing = false;
-    let pressedKeys = new Set();
-    let maxCombo = new Set(); // Tracks highest number of concurrent keys in this session
-
-    hotkeyInput.addEventListener('click', () => {
-        if (isCapturing) return;
-
-        isCapturing = true;
-        hotkeyInput.value = 'Press any key...';
-        hotkeyInput.style.borderColor = '#6BB589';
-        hotkeyInput.style.background = '#2d2d30';
-        // Clear previous state for a new capture session
-        pressedKeys.clear();
-        maxCombo.clear();
-        // Pause the global hotkey listener so pressing the current hotkey
-        // doesn't trigger recording while the user is setting a new one
-        window.electronAPI.pauseHotkey();
-    });
-
-    hotkeyInput.addEventListener('keydown', (e) => {
-        if (!isCapturing) return;
-
-        e.preventDefault();
-
-        const rawKey = e.code;
-        const uiohookKey = keyToUiohook[rawKey];
-
-        if (!uiohookKey) {
-            return;
-        }
-
-        // Add to active set
-        pressedKeys.add(uiohookKey);
-
-        // If current set is larger than max, update max
-        if (pressedKeys.size > maxCombo.size) {
-            maxCombo = new Set(pressedKeys);
-        } else if (pressedKeys.size === maxCombo.size) {
-            // Even if same size, we update if the keys are different (e.g. A->B rollover)
-            // But usually maxCombo should be "accumulative" in intent?
-            // Actually, if user releases A then presses B, it's a new combo.
-            // If user holds A and presses B, it's A+B.
-            // The logic: "Max Combo" is the peak of the mountain.
-            maxCombo = new Set(pressedKeys);
-        }
-
-        // Display CURRENT held keys to show responsiveness
-        const currentKeys = Array.from(pressedKeys);
-
-        // Sort modifiers first for nice display
-        const sortedKeys = sortKeys(currentKeys);
-
-        const displayName = sortedKeys
-            .map(part => keyDisplayNames[part] || part)
-            .join(' + ');
-
-        hotkeyInput.value = displayName;
-    });
-
-    hotkeyInput.addEventListener('keyup', async (e) => {
-        if (!isCapturing) return;
-
-        const rawKey = e.code;
-        const uiohookKey = keyToUiohook[rawKey];
-
-        if (uiohookKey) {
-            pressedKeys.delete(uiohookKey);
-        }
-
-        // If all keys are released, we commit the MAX combo derived during the session
-        if (pressedKeys.size === 0 && maxCombo.size > 0) {
-            await commitHotkey(Array.from(maxCombo));
-            pressedKeys.clear();
-            maxCombo.clear();
-            isCapturing = false;
-            hotkeyInput.style.borderColor = '#3e3e42';
-            hotkeyInput.style.background = '#252526';
-            hotkeyInput.blur(); // Unfocus to prevent accidental restarts
-        }
-    });
-
-    async function commitHotkey(keys) {
-        // Sort keys for consistent storage
-        const sortedKeys = sortKeys(keys);
-        const combo = sortedKeys.join('+');
-
-        try {
-            // setHotkey restarts monitoring in main; resumeHotkey clears the paused flag
-            await window.electronAPI.setHotkey(combo);
-            window.electronAPI.resumeHotkey();
-
-            const displayName = sortedKeys
-                .map(part => keyDisplayNames[part] || part)
-                .join(' + ');
-
-            hotkeyInput.value = displayName;
-            const dashHotkey = document.getElementById('dashboardHotkeyDisplay');
-            if (dashHotkey) {
-                dashHotkey.textContent = displayName;
-            }
-            showToast('Hotkey saved');
-        } catch (error) {
-            console.error('Error setting hotkey:', error);
-            window.electronAPI.resumeHotkey();
-            hotkeyInput.value = 'Error - try again';
-        }
-    }
-
-    function sortKeys(keys) {
-        const modifiers = ['Ctrl', 'CtrlRight', 'Alt', 'AltRight', 'Shift', 'ShiftRight', 'Meta', 'MetaRight'];
-        return keys.sort((a, b) => {
-            const aMod = modifiers.includes(a);
-            const bMod = modifiers.includes(b);
-            if (aMod && !bMod) return -1;
-            if (!aMod && bMod) return 1;
-            return 0;
-        });
-    }
-
-    // Handle blur (click away)
-    hotkeyInput.addEventListener('blur', async () => {
-        if (isCapturing) {
-            // Capture cancelled — resume hotkey monitoring and revert display
-            isCapturing = false;
-            pressedKeys.clear();
-            maxCombo.clear();
-            hotkeyInput.style.borderColor = '#3e3e42';
-            hotkeyInput.style.background = '#252526';
-            window.electronAPI.resumeHotkey();
-            const current = await window.electronAPI.getHotkey();
-            hotkeyInput.style.borderColor = '#3e3e42';
-            hotkeyInput.style.background = '#252526';
-            isCapturing = false;
-        }
-    });
-}
-
-// Setup transcription provider handler
-function setupTranscriptionProvider() {
-    const providerSelect = document.getElementById('transcriptionProvider');
-
-    if (providerSelect) {
-        providerSelect.addEventListener('change', async () => {
-            const mode = providerSelect.value;
-            try {
-                await window.electronAPI.setTranscriptionMode(mode);
-                await updateProviderUI(mode);
-
-                const modeLabel = mode === 'offline' ? 'Local (Offline)' : 'OpenAI API';
-                showToast(`Provider changed to ${modeLabel}`);
-            } catch (error) {
-                console.error('Error setting transcription mode:', error);
-            }
-        });
-    }
-}
-
-// Setup model download button
-function setupModelDownload() {
-    const downloadBtn = document.getElementById('downloadModelBtn');
-
-    if (downloadBtn) {
-        downloadBtn.addEventListener('click', async () => {
-            const downloadIcon = downloadBtn.querySelector('.download-icon');
-            const spinnerIcon = downloadBtn.querySelector('.spinner-icon');
-
-            try {
-                // Disable button and show spinner
-                downloadBtn.disabled = true;
-                downloadIcon.style.display = 'none';
-                spinnerIcon.style.display = 'block';
-
-                showToast('Downloading model (~150MB)...');
-
-                // Trigger download
-                const result = await window.electronAPI.downloadModel();
-
-                if (result.success) {
-                    showToast('Model downloaded successfully!');
-                    // Hide download button and reset icons
-                    downloadIcon.style.display = 'block';
-                    spinnerIcon.style.display = 'none';
-                    downloadBtn.disabled = false;
-                    downloadBtn.style.display = 'none';
-                } else {
-                    throw new Error(result.error || 'Download failed');
-                }
-            } catch (error) {
-                console.error('Error downloading model:', error);
-                showToast('Download failed: ' + error.message);
-                // Restore download icon
-                downloadBtn.disabled = false;
-                downloadIcon.style.display = 'block';
-                spinnerIcon.style.display = 'none';
-            }
-        });
-    }
-}
-
 
 // ─── Dashboard & Tab navigation ──────────────────────────────────────────────
 async function loadLatestDictationSnippet() {
@@ -536,7 +541,7 @@ function updateRecordingState(status) {
         statusText.textContent = 'Recording...';
     } else if (status === 'processing') {
         micBtn.className = 'hero-mic-btn processing';
-        prompt.textContent = 'Transcribing with Whisper...';
+        prompt.textContent = 'Transcribing audio...';
         pill.className = 'status-indicator-pill processing';
         statusText.textContent = 'Transcribing...';
     } else {
@@ -584,7 +589,7 @@ function setupTabs() {
         });
     });
 
-    // Wire up quick buttons navigating to settings
+    // Wire shortcuts to settings
     const btnOpenSettings = document.getElementById('btnOpenSettingsPage');
     if (btnOpenSettings) {
         btnOpenSettings.addEventListener('click', () => switchTab('settings'));
@@ -645,16 +650,16 @@ function setupTabs() {
         });
     }
 
-    // Listen for tab navigation from main process (e.g. from tray menu)
+    // Listen for tab navigation from main process
     if (window.electronAPI && window.electronAPI.onNavigateTab) {
-        window.electronAPI.onNavigateTab((tab) => {
+        window.electronAPI.onNavigateTab(tab => {
             switchTab(tab);
         });
     }
 
     // Listen for live recording status changes
     if (window.electronAPI && window.electronAPI.onRecordingStatusChanged) {
-        window.electronAPI.onRecordingStatusChanged((status) => {
+        window.electronAPI.onRecordingStatusChanged(status => {
             updateRecordingState(status);
         });
     }
@@ -676,8 +681,7 @@ function formatHistoryDate(isoString) {
 
     return date.toLocaleDateString([], {
         month: 'short',
-        day: 'numeric',
-        year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+        day: 'numeric'
     }) + ` at ${timeStr}`;
 }
 
@@ -693,25 +697,17 @@ async function loadAndRenderHistory() {
         console.error('Failed to load history:', e);
     }
 
-    // Update count label
     if (countEl) {
         const n = history.length;
         countEl.textContent = n === 1 ? '1 transcription' : `${n} transcriptions`;
     }
 
-    // Remove any previously rendered entries
     Array.from(list.querySelectorAll('.history-entry, .history-empty-card')).forEach(el => el.remove());
 
     if (history.length === 0) {
         const card = document.createElement('div');
         card.className = 'history-entry history-empty-card';
-        card.innerHTML = `
-            <div class="history-entry-meta">
-                <span class="history-entry-date">No transcriptions yet</span>
-                <span class="history-copy-hint"></span>
-            </div>
-            <div class="history-entry-text history-entry-text--muted">Your transcription history will appear here</div>
-        `;
+        card.innerHTML = `<span class="history-entry-date">No transcriptions yet</span>`;
         list.appendChild(card);
         return;
     }
@@ -723,13 +719,7 @@ async function loadAndRenderHistory() {
         el.innerHTML = `
             <div class="history-entry-meta">
                 <span class="history-entry-date">${formatHistoryDate(entry.timestamp)}</span>
-                <span class="history-copy-hint">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                    </svg>
-                    Copy
-                </span>
+                <span class="history-copy-hint">Copy</span>
             </div>
             <div class="history-entry-text">${escapeHtml(entry.text)}</div>
         `;
@@ -749,12 +739,8 @@ function escapeHtml(str) {
 
 function copyHistoryEntry(el, text) {
     navigator.clipboard.writeText(text).then(() => {
-        // Visual flash
-        el.classList.add('flash');
-        setTimeout(() => el.classList.remove('flash'), 600);
         showToast('Copied to clipboard');
     }).catch(err => {
-        console.error('Clipboard write failed:', err);
         showToast('Failed to copy', 'error');
     });
 }
@@ -769,27 +755,114 @@ function setupClearHistory() {
             await loadAndRenderHistory();
             showToast('History cleared');
         } catch (e) {
-            console.error('Failed to clear history:', e);
             showToast('Failed to clear history', 'error');
         }
     });
 }
 
-// Setup auto-save for API key and microphone
+// ─── Hotkey Capture ──────────────────────────────────────────────────────────
+function setupHotkeyCapture() {
+    const hotkeyInput = document.getElementById('hotkey');
+    if (!hotkeyInput) return;
+
+    let isCapturing = false;
+    let pressedKeys = new Set();
+    let maxCombo = new Set();
+
+    hotkeyInput.addEventListener('click', () => {
+        if (!isCapturing) {
+            isCapturing = true;
+            pressedKeys.clear();
+            maxCombo.clear();
+            window.electronAPI.pauseHotkey();
+            hotkeyInput.classList.add('capturing');
+            hotkeyInput.value = 'Press key combination...';
+        }
+    });
+
+    hotkeyInput.addEventListener('keydown', (e) => {
+        if (!isCapturing) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (e.code === 'Escape') {
+            isCapturing = false;
+            hotkeyInput.classList.remove('capturing');
+            window.electronAPI.resumeHotkey();
+            loadSettings();
+            return;
+        }
+
+        const uiohookName = keyToUiohook[e.code];
+        if (uiohookName) {
+            pressedKeys.add(uiohookName);
+            if (pressedKeys.size > maxCombo.size) {
+                maxCombo = new Set(pressedKeys);
+            }
+
+            const displayName = Array.from(maxCombo)
+                .map(part => keyDisplayNames[part] || part)
+                .join(' + ');
+
+            hotkeyInput.value = displayName;
+        }
+    });
+
+    hotkeyInput.addEventListener('keyup', async (e) => {
+        if (!isCapturing) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const uiohookName = keyToUiohook[e.code];
+        if (uiohookName) pressedKeys.delete(uiohookName);
+
+        if (pressedKeys.size === 0 && maxCombo.size > 0) {
+            const finalKeys = Array.from(maxCombo);
+            isCapturing = false;
+            hotkeyInput.classList.remove('capturing');
+
+            const combo = finalKeys.join('+');
+            try {
+                await window.electronAPI.setHotkey(combo);
+                window.electronAPI.resumeHotkey();
+
+                const displayName = finalKeys
+                    .map(part => keyDisplayNames[part] || part)
+                    .join(' + ');
+
+                hotkeyInput.value = displayName;
+                const dashHotkey = document.getElementById('dashboardHotkeyDisplay');
+                if (dashHotkey) dashHotkey.textContent = displayName;
+                showToast('Hotkey saved');
+            } catch (err) {
+                console.error('Error saving hotkey:', err);
+                window.electronAPI.resumeHotkey();
+            }
+        }
+    });
+
+    hotkeyInput.addEventListener('blur', () => {
+        if (isCapturing) {
+            isCapturing = false;
+            hotkeyInput.classList.remove('capturing');
+            window.electronAPI.resumeHotkey();
+            loadSettings();
+        }
+    });
+}
+
+// ─── Initialize ──────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-    const apiKeyInput = document.getElementById('apiKey');
-    const micSelect = document.getElementById('microphone');
-
-    // Setup window controls
+    loadSettings();
     setupWindowControls();
-
-    // Setup tabs (Settings / History)
     setupTabs();
-
-    // Setup history clear button
+    setupPasswordToggles();
+    setupBYOKAutoSave();
+    setupModelActions();
     setupClearHistory();
+    setupHotkeyCapture();
 
-    // Refresh history list and dashboard live whenever a new transcription comes in
+    // Live history update
     if (window.electronAPI.onHistoryUpdated) {
         window.electronAPI.onHistoryUpdated(() => {
             loadLatestDictationSnippet();
@@ -800,45 +873,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Setup hotkey capture
-    setupHotkeyCapture();
-
-    // Setup transcription provider
-    setupTranscriptionProvider();
-
-    // Setup model download
-    setupModelDownload();
-
-    // Surface transcription errors (e.g. invalid API key, network failure) as toasts
+    // Surface errors as toasts
     if (window.electronAPI.onError) {
-        window.electronAPI.onError((message) => {
-            showToast(message, 'error');
+        window.electronAPI.onError(msg => {
+            showToast(msg, 'error');
         });
     }
 
-    // Auto-save API key on Enter or blur (when user clicks away)
-    if (apiKeyInput) {
-        // Strip whitespace in real time so the user sees the clean value as they type/paste
-        apiKeyInput.addEventListener('input', () => {
-            const cleaned = apiKeyInput.value.replace(/\s/g, '');
-            if (cleaned !== apiKeyInput.value) {
-                apiKeyInput.value = cleaned;
-            }
-        });
-
-        apiKeyInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                saveApiKey();
-                apiKeyInput.blur();
-            }
-        });
-
-        apiKeyInput.addEventListener('blur', () => {
-            saveApiKey();
-        });
-    }
-
-    // Auto-save microphone selection when changed
+    // Microphone change listener
+    const micSelect = document.getElementById('microphone');
     if (micSelect) {
         micSelect.addEventListener('change', async () => {
             try {
@@ -848,26 +891,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     dashMic.textContent = micSelect.options[micSelect.selectedIndex].text;
                 }
                 showToast('Changes saved');
-            } catch (error) {
-                console.error('Error saving microphone:', error);
+            } catch (e) {
+                console.error('Error saving microphone:', e);
             }
         });
     }
 
-    // Close window on ESC key (but not when capturing hotkey)
-    document.addEventListener('keydown', (e) => {
+    // ESC to hide window
+    document.addEventListener('keydown', e => {
         const hotkeyInput = document.getElementById('hotkey');
         if (e.key === 'Escape' && document.activeElement !== hotkeyInput) {
             window.electronAPI.closeSettings();
         }
     });
 
-    // Make external links open in default browser
-    document.addEventListener('click', (e) => {
+    // External links
+    document.addEventListener('click', e => {
         if (e.target.tagName === 'A' && e.target.href) {
             e.preventDefault();
             window.electronAPI.openExternal(e.target.href);
         }
     });
 });
-

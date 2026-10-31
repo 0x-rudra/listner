@@ -1,172 +1,374 @@
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
+const axios = require('axios');
 const Logger = require('./logger');
+const Config = require('./config');
+
+const STANDARD_MODELS = [
+  { id: 'tiny.en', name: 'tiny.en', filename: 'ggml-tiny.en.bin', sizeApprox: '75 MB', url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin' },
+  { id: 'base.en', name: 'base.en', filename: 'ggml-base.en.bin', sizeApprox: '145 MB', url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin' },
+  { id: 'small.en', name: 'small.en', filename: 'ggml-small.en.bin', sizeApprox: '480 MB', url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin' },
+  { id: 'medium.en', name: 'medium.en', filename: 'ggml-medium.en.bin', sizeApprox: '1.5 GB', url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.en.bin' }
+];
 
 class LocalTranscriptionService {
   constructor() {
     this.modelPath = null;
-    this.modelName = 'base.en'; // Default model
-    this.isInitialized = false;
-    this.ffmpegPath = null; // Cache for extracted FFmpeg path
+    this.ffmpegPath = null;
     Logger.log('LocalTranscriptionService initialized');
   }
 
+  getModelsDir() {
+    const { app } = require('electron');
+    const modelsDir = path.join(app.getPath('userData'), 'whisper-models');
+    if (!fs.existsSync(modelsDir)) {
+      fs.mkdirSync(modelsDir, { recursive: true });
+    }
+    return modelsDir;
+  }
+
   /**
-   * Initialize the local transcription service
-   * Downloads model if needed
+   * Resolve active local model path
    */
-  async initialize() {
-    if (this.isInitialized) {
-      return;
+  getActiveModelPath() {
+    const configuredPath = Config.getLocalModelPath();
+    if (configuredPath && fs.existsSync(configuredPath)) {
+      return configuredPath;
     }
 
+    const modelsDir = this.getModelsDir();
+    const activeName = Config.getLocalModelName() || 'base.en';
+
+    // Check if filename already in modelsDir
+    const expectedFilename = activeName.endsWith('.bin') ? activeName : `ggml-${activeName}.bin`;
+    const candidatePath = path.join(modelsDir, expectedFilename);
+    if (fs.existsSync(candidatePath)) {
+      return candidatePath;
+    }
+
+    // Check bundled model
+    let bundledDir = '';
     try {
       const { app } = require('electron');
-      const modelsDir = path.join(app.getPath('userData'), 'whisper-models');
+      bundledDir = app && app.isPackaged
+        ? path.join(process.resourcesPath, 'whisper-models')
+        : path.join(__dirname, '..', 'whisper-models');
+    } catch (e) {
+      bundledDir = path.join(__dirname, '..', 'whisper-models');
+    }
 
-      // Ensure models directory exists
-      if (!fs.existsSync(modelsDir)) {
-        fs.mkdirSync(modelsDir, { recursive: true });
-        Logger.log('Created models directory:', modelsDir);
+    if (fs.existsSync(path.join(bundledDir, expectedFilename))) {
+      return path.join(bundledDir, expectedFilename);
+    }
+
+    // Check if any .bin exists in modelsDir
+    const allFiles = fs.readdirSync(modelsDir).filter(f => f.endsWith('.bin'));
+    if (allFiles.length > 0) {
+      return path.join(modelsDir, allFiles[0]);
+    }
+
+    return null;
+  }
+
+  /**
+   * Get list of all available models (standard + imported custom)
+   */
+  getLocalModelsList() {
+    const modelsDir = this.getModelsDir();
+    const activePath = this.getActiveModelPath();
+    const filesInDir = fs.readdirSync(modelsDir);
+
+    // Build standard models list
+    const result = STANDARD_MODELS.map(m => {
+      const filePath = path.join(modelsDir, m.filename);
+      const isDownloaded = fs.existsSync(filePath);
+      let sizeMB = 0;
+      if (isDownloaded) {
+        try {
+          const stats = fs.statSync(filePath);
+          sizeMB = (stats.size / (1024 * 1024)).toFixed(1);
+        } catch (e) {}
       }
 
-      this.modelPath = path.join(modelsDir, `ggml-${this.modelName}.bin`);
+      return {
+        id: m.id,
+        name: m.name,
+        filename: m.filename,
+        path: filePath,
+        sizeApprox: m.sizeApprox,
+        sizeMB: sizeMB ? `${sizeMB} MB` : m.sizeApprox,
+        isDownloaded,
+        isCustom: false,
+        isActive: activePath === filePath
+      };
+    });
 
-      // Check if model exists
-      if (!fs.existsSync(this.modelPath)) {
-        Logger.log('Model not found, copying from bundle...');
-        await this.copyBundledModel(modelsDir);
-      } else {
-        Logger.success('Local Whisper model found:', this.modelPath);
+    // Add imported models from Config
+    const importedFromConfig = Config.getImportedModels();
+    for (const imp of importedFromConfig) {
+      const exists = fs.existsSync(imp.path);
+      let sizeMB = imp.sizeMB;
+      if (exists && !sizeMB) {
+        try {
+          const stats = fs.statSync(imp.path);
+          sizeMB = (stats.size / (1024 * 1024)).toFixed(1) + ' MB';
+        } catch (e) {}
       }
 
-      this.isInitialized = true;
+      // Check not duplicate
+      if (!result.some(r => r.path === imp.path)) {
+        result.push({
+          id: imp.id || imp.filename,
+          name: imp.name || imp.filename,
+          filename: imp.filename,
+          path: imp.path,
+          sizeMB: sizeMB || 'Custom',
+          isDownloaded: exists,
+          isCustom: true,
+          isActive: activePath === imp.path
+        });
+      }
+    }
+
+    // Scan any stray .bin files in modelsDir not yet accounted for
+    for (const f of filesInDir) {
+      if (f.endsWith('.bin')) {
+        const fullPath = path.join(modelsDir, f);
+        if (!result.some(r => r.filename === f || r.path === fullPath)) {
+          let sizeMB = '0 MB';
+          try {
+            const stats = fs.statSync(fullPath);
+            sizeMB = (stats.size / (1024 * 1024)).toFixed(1) + ' MB';
+          } catch (e) {}
+
+          const cleanName = f.replace(/^ggml-/, '').replace(/\.bin$/, '');
+          result.push({
+            id: f,
+            name: cleanName,
+            filename: f,
+            path: fullPath,
+            sizeMB,
+            isDownloaded: true,
+            isCustom: true,
+            isActive: activePath === fullPath
+          });
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Import a local model (.bin) selected by the user
+   * @param {string} sourceFilePath - Path to source model file on user's disk
+   */
+  async importModel(sourceFilePath) {
+    if (!fs.existsSync(sourceFilePath)) {
+      throw new Error(`File does not exist: ${sourceFilePath}`);
+    }
+
+    const filename = path.basename(sourceFilePath);
+    if (!filename.toLowerCase().endsWith('.bin')) {
+      throw new Error('Selected file must be a Whisper GGML .bin model file.');
+    }
+
+    const modelsDir = this.getModelsDir();
+    const destinationPath = path.join(modelsDir, filename);
+
+    Logger.log(`Importing model from ${sourceFilePath} to ${destinationPath}...`);
+
+    // If source is not already inside modelsDir, copy it
+    if (sourceFilePath !== destinationPath) {
+      fs.copyFileSync(sourceFilePath, destinationPath);
+    }
+
+    const stats = fs.statSync(destinationPath);
+    const sizeMB = (stats.size / (1024 * 1024)).toFixed(1) + ' MB';
+    const cleanName = filename.replace(/^ggml-/, '').replace(/\.bin$/, '');
+
+    const modelRecord = {
+      id: Date.now().toString(),
+      name: cleanName,
+      filename,
+      path: destinationPath,
+      sizeMB,
+      importedAt: new Date().toISOString()
+    };
+
+    Config.addImportedModel(modelRecord);
+    Config.setLocalModelName(cleanName);
+    Config.setLocalModelPath(destinationPath);
+    this.modelPath = destinationPath;
+
+    Logger.success(`Model imported successfully: ${cleanName} (${sizeMB})`);
+    return modelRecord;
+  }
+
+  /**
+   * Set active local model by ID, name, or full path
+   */
+  setActiveModel(identifier) {
+    const models = this.getLocalModelsList();
+    const match = models.find(m => m.id === identifier || m.name === identifier || m.path === identifier);
+
+    if (match) {
+      Config.setLocalModelName(match.name);
+      Config.setLocalModelPath(match.path);
+      this.modelPath = match.path;
+      Logger.log(`Active local model set to: ${match.name} (${match.path})`);
+      return match;
+    } else {
+      Config.setLocalModelName(identifier);
+      Logger.log(`Active local model name set to: ${identifier}`);
+      return null;
+    }
+  }
+
+  /**
+   * Download a standard model directly from HuggingFace with progress callback
+   */
+  async downloadModel(modelName = 'base.en', onProgress = null) {
+    const cleanName = modelName.replace(/^ggml-/, '').replace(/\.bin$/, '');
+    const standardDef = STANDARD_MODELS.find(m => m.id === cleanName || m.name === cleanName) || {
+      name: cleanName,
+      filename: `ggml-${cleanName}.bin`,
+      url: `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-${cleanName}.bin`
+    };
+
+    const modelsDir = this.getModelsDir();
+    const targetPath = path.join(modelsDir, standardDef.filename);
+    const tempPath = `${targetPath}.tmp`;
+
+    Logger.log(`Downloading model ${cleanName} from ${standardDef.url}...`);
+
+    try {
+      const response = await axios({
+        method: 'GET',
+        url: standardDef.url,
+        responseType: 'stream',
+        timeout: 600000 // 10 minute timeout
+      });
+
+      const totalLength = parseInt(response.headers['content-length'] || '0', 10);
+      let downloadedLength = 0;
+
+      const writer = fs.createWriteStream(tempPath);
+
+      response.data.on('data', chunk => {
+        downloadedLength += chunk.length;
+        if (totalLength > 0 && onProgress) {
+          const percent = Math.min(100, Math.round((downloadedLength / totalLength) * 100));
+          onProgress({ percent, downloadedMB: (downloadedLength / (1024 * 1024)).toFixed(1), totalMB: (totalLength / (1024 * 1024)).toFixed(1) });
+        }
+      });
+
+      await new Promise((resolve, reject) => {
+        response.data.pipe(writer);
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+      });
+
+      // Rename temp to target
+      if (fs.existsSync(targetPath)) {
+        fs.unlinkSync(targetPath);
+      }
+      fs.renameSync(tempPath, targetPath);
+
+      // Set as active model
+      this.modelPath = targetPath;
+      Config.setLocalModelName(cleanName);
+      Config.setLocalModelPath(targetPath);
+
+      Logger.success(`Model ${cleanName} downloaded successfully!`);
+      return { success: true, path: targetPath, name: cleanName };
     } catch (error) {
-      Logger.error('Error initializing local transcription:', error);
+      if (fs.existsSync(tempPath)) {
+        try { fs.unlinkSync(tempPath); } catch (e) {}
+      }
+      Logger.error(`Error downloading model ${cleanName}:`, error);
       throw error;
     }
   }
 
   /**
-   * Copy bundled Whisper model to userData
+   * Delete an installed local model
    */
-  async copyBundledModel(modelsDir) {
-    Logger.log('Copying bundled Whisper model...');
-
-    let bundledModelPath;
-    try {
-      const { app } = require('electron');
-      if (app && app.isPackaged) {
-        // Production: model is in process.resourcesPath
-        bundledModelPath = path.join(process.resourcesPath, 'whisper-models', `ggml-${this.modelName}.bin`);
-      } else {
-        // Development: model is in project root
-        bundledModelPath = path.join(__dirname, '..', 'whisper-models', `ggml-${this.modelName}.bin`);
-      }
-    } catch (e) {
-      // Fallback
-      bundledModelPath = path.join(process.resourcesPath || path.join(__dirname, '..'), 'whisper-models', `ggml-${this.modelName}.bin`);
+  deleteModel(modelPath) {
+    if (fs.existsSync(modelPath)) {
+      fs.unlinkSync(modelPath);
     }
-
-    if (!fs.existsSync(bundledModelPath)) {
-      throw new Error(`Bundled model not found at: ${bundledModelPath}. Please ensure the build includes the whisper-models folder.`);
-    }
-
-    try {
-      fs.copyFileSync(bundledModelPath, this.modelPath);
-      Logger.success('Model copied successfully!');
-    } catch (error) {
-      Logger.error('Error copying bundled model:', error);
-      throw new Error('Failed to copy Whisper model from bundle.');
-    }
+    Config.removeImportedModel(modelPath);
+    Logger.log(`Deleted model at: ${modelPath}`);
+    return true;
   }
 
-  /**
-   * Get FFmpeg path, extracting from app.asar if needed
-   */
+  isModelDownloaded() {
+    const activePath = this.getActiveModelPath();
+    return Boolean(activePath && fs.existsSync(activePath));
+  }
+
+  async initialize() {
+    this.modelPath = this.getActiveModelPath();
+    if (!this.modelPath) {
+      throw new Error('No local Whisper model found. Please download or import a model in Settings.');
+    }
+    return true;
+  }
+
   async getFfmpegPath() {
-    // Return cached path if available
     if (this.ffmpegPath && fs.existsSync(this.ffmpegPath)) {
       return this.ffmpegPath;
     }
 
     let ffmpegPath = require('ffmpeg-static');
     if (!ffmpegPath) {
-      throw new Error('ffmpeg-static not found. Please ensure it is installed.');
+      throw new Error('ffmpeg-static not found.');
     }
 
-    // Check if FFmpeg is inside app.asar (packaged build)
     if (ffmpegPath.includes('app.asar')) {
-      Logger.log('FFmpeg is inside app.asar, extracting...');
+      const { app } = require('electron');
+      const userDataPath = app.getPath('userData');
+      const ffmpegDir = path.join(userDataPath, 'ffmpeg');
+      const extractedPath = path.join(ffmpegDir, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
 
-      try {
-        const { app } = require('electron');
-        const userDataPath = app.getPath('userData');
-        const ffmpegDir = path.join(userDataPath, 'ffmpeg');
-        const extractedPath = path.join(ffmpegDir, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
-
-        // Create directory if it doesn't exist
-        if (!fs.existsSync(ffmpegDir)) {
-          fs.mkdirSync(ffmpegDir, { recursive: true });
-        }
-
-        // Extract FFmpeg if not already extracted
-        if (!fs.existsSync(extractedPath)) {
-          Logger.log('Extracting FFmpeg to:', extractedPath);
-          const ffmpegBuffer = fs.readFileSync(ffmpegPath);
-          fs.writeFileSync(extractedPath, ffmpegBuffer);
-
-          // Make executable on Unix systems
-          if (process.platform !== 'win32') {
-            fs.chmodSync(extractedPath, 0o755);
-          }
-
-          Logger.success('FFmpeg extracted successfully');
-        } else {
-          Logger.log('FFmpeg already extracted');
-        }
-
-        this.ffmpegPath = extractedPath;
-        return extractedPath;
-      } catch (error) {
-        Logger.error('Error extracting FFmpeg:', error);
-        // Fallback to original path (might fail, but worth trying)
-        this.ffmpegPath = ffmpegPath;
-        return ffmpegPath;
+      if (!fs.existsSync(ffmpegDir)) {
+        fs.mkdirSync(ffmpegDir, { recursive: true });
       }
+
+      if (!fs.existsSync(extractedPath)) {
+        const ffmpegBuffer = fs.readFileSync(ffmpegPath);
+        fs.writeFileSync(extractedPath, ffmpegBuffer);
+        if (process.platform !== 'win32') {
+          fs.chmodSync(extractedPath, 0o755);
+        }
+      }
+
+      this.ffmpegPath = extractedPath;
+      return extractedPath;
     } else {
-      // Development mode or already extracted
       this.ffmpegPath = ffmpegPath;
       return ffmpegPath;
     }
   }
 
-  /**
-   * Convert audio file to WAV format if needed
-   * whisper.cpp prefers 16kHz WAV files
-   */
   async convertToWav(audioFilePath) {
     const ext = path.extname(audioFilePath).toLowerCase();
     if (ext === '.wav') {
       return audioFilePath;
     }
 
-    // Use getFfmpegPath() to handle app.asar extraction
     const ffmpegPath = await this.getFfmpegPath();
-    if (!ffmpegPath) {
-      throw new Error('ffmpeg-static not found. Please ensure it is installed.');
-    }
-
     const wavPath = audioFilePath.replace(/\.[^.]+$/, '.wav');
     const args = [
       '-nostats',
       '-loglevel', 'error',
       '-y',
       '-i', audioFilePath,
-      '-ar', '16000',        // 16 kHz sample rate
-      '-ac', '1',            // mono
-      '-c:a', 'pcm_s16le',   // 16-bit PCM
+      '-ar', '16000',
+      '-ac', '1',
+      '-c:a', 'pcm_s16le',
       wavPath
     ];
 
@@ -177,7 +379,7 @@ class LocalTranscriptionService {
       proc.stderr.on('data', d => { stderr += d.toString(); });
       proc.on('close', code => {
         if (code === 0) return resolve();
-        reject(new Error(`ffmpeg failed (code ${code}): ${stderr}`));
+        reject(new Error(`ffmpeg conversion failed: ${stderr}`));
       });
       proc.on('error', reject);
     });
@@ -185,286 +387,148 @@ class LocalTranscriptionService {
     return wavPath;
   }
 
-  /**
-   * Transcribe audio file using local Whisper model
-   * @param {string} audioFilePath - Path to the audio file
-   * @returns {Promise<string>} - Transcribed text
-   */
+  async ensureWhisperBinary() {
+    let binaryDir;
+    try {
+      const { app } = require('electron');
+      if (app && app.isPackaged) {
+        binaryDir = path.join(process.resourcesPath, 'whisper-bin');
+      } else {
+        binaryDir = path.join(__dirname, '..', 'whisper-bin');
+      }
+    } catch (e) {
+      binaryDir = path.join(__dirname, '..', 'whisper-bin');
+    }
+
+    // Platform-specific search
+    if (process.platform === 'win32') {
+      for (const name of ['whisper-cli.exe', 'main.exe']) {
+        const p = path.join(binaryDir, name);
+        if (fs.existsSync(p)) return p;
+      }
+    } else if (process.platform === 'darwin') {
+      for (const name of ['whisper-cli', 'main']) {
+        const p = path.join(binaryDir, name);
+        if (fs.existsSync(p)) return p;
+      }
+    } else {
+      // Linux: check whisper-bin/linux/whisper-cli, whisper-bin/whisper-cli, or system PATH
+      const linuxCandidates = [
+        path.join(binaryDir, 'linux', 'whisper-cli'),
+        path.join(binaryDir, 'whisper-cli-linux'),
+        path.join(binaryDir, 'whisper-cli')
+      ];
+
+      for (const p of linuxCandidates) {
+        if (fs.existsSync(p)) {
+          return p;
+        }
+      }
+
+      // Check system PATH
+      for (const sysCmd of ['whisper-cli', 'whisper-cpp', 'main']) {
+        try {
+          const res = spawnSync('which', [sysCmd]);
+          if (res.status === 0) {
+            const out = res.stdout.toString().trim();
+            if (out && fs.existsSync(out)) return out;
+          }
+        } catch (e) {}
+      }
+    }
+
+    throw new Error('Whisper executable binary not found for your operating system.');
+  }
+
   async transcribe(audioFilePath) {
     try {
-      // Ensure model is downloaded first
       await this.initialize();
 
       if (!fs.existsSync(audioFilePath)) {
-        Logger.error('Audio file not found:', audioFilePath);
         throw new Error('Audio file not found');
       }
 
-      const stats = fs.statSync(audioFilePath);
-      Logger.log(`Transcribing locally: ${path.basename(audioFilePath)}, Size: ${(stats.size / 1024).toFixed(2)} KB`);
-
-      if (!fs.existsSync(this.modelPath)) {
-        throw new Error('Whisper model not found. Please ensure the model is downloaded.');
+      const activeModel = this.getActiveModelPath();
+      if (!activeModel || !fs.existsSync(activeModel)) {
+        throw new Error('Local Whisper model not found. Please download or import a model in Settings.');
       }
 
-      // Convert to WAV (16kHz mono) if needed
       const wavPath = await this.convertToWav(audioFilePath);
+      const binaryPath = await this.ensureWhisperBinary();
+      const binaryDir = path.dirname(binaryPath);
 
-      // Use whisper.cpp CLI
-      Logger.log('Starting local transcription with whisper.cpp binary...');
-      const result = await this.transcribeWithWhisperBinary(wavPath);
+      Logger.log(`Running whisper: ${binaryPath} with model ${activeModel}`);
 
-      Logger.log('Transcription result received:', typeof result);
+      const args = [
+        '-m', activeModel,
+        '-f', wavPath,
+        '-l', 'en',
+        '-otxt',
+        '-np'
+      ];
 
-      let transcribedText = '';
-
-      if (Array.isArray(result)) {
-        // whisper-node returns array of {start, end, speech} objects
-        transcribedText = result.map(segment => segment.speech).join(' ').trim();
-      } else if (typeof result === 'string') {
-        transcribedText = result.trim();
-      } else if (result && result.text) {
-        transcribedText = result.text.trim();
+      // Add library path for dynamic libraries
+      const env = { ...process.env };
+      if (process.platform === 'linux') {
+        env.LD_LIBRARY_PATH = `${binaryDir}:${process.env.LD_LIBRARY_PATH || ''}`;
+      } else if (process.platform === 'darwin') {
+        env.DYLD_LIBRARY_PATH = `${binaryDir}:${process.env.DYLD_LIBRARY_PATH || ''}`;
       }
 
-      Logger.transcription('Local transcription result:', `"${transcribedText}"`);
-      Logger.log('Transcription length:', transcribedText.length, 'characters');
-
-      // Clean up audio files after transcription
-      try {
-        fs.unlinkSync(audioFilePath);
-        Logger.log('Temp audio file deleted');
-        if (wavPath !== audioFilePath && fs.existsSync(wavPath)) {
-          fs.unlinkSync(wavPath);
-        }
-        const wavTxt = `${wavPath}.txt`;
-        if (fs.existsSync(wavTxt)) fs.unlinkSync(wavTxt);
-      } catch (error) {
-        Logger.warn('Error deleting temp audio file:', error.message);
-      }
-
-      return transcribedText;
-    } catch (error) {
-      // Clean up audio file even on error
-      try {
-        if (fs.existsSync(audioFilePath)) {
-          fs.unlinkSync(audioFilePath);
-        }
-      } catch (cleanupError) {
-        Logger.error('Error deleting temp audio file:', cleanupError);
-      }
-
-      Logger.error('Local transcription error:', error);
-      throw new Error(`Local transcription failed: ${error.message}`);
-    }
-  }
-
-  async transcribeWithWhisperBinary(audioFilePath) {
-    const { spawn } = require('child_process');
-    const fs = require('fs');
-    const path = require('path');
-
-    return new Promise(async (resolve, reject) => {
-      try {
-        // Ensure we have the whisper binary
-        const binaryPath = await this.ensureWhisperBinary();
-        Logger.log('Using whisper binary:', binaryPath);
-
-        // whisper.cpp (main/whisper-cli) options:
-        //  -m <model>  -f <audio.wav>  -l <lang>  -otxt  -np (no prints)
-        const args = [
-          '-m', this.modelPath,
-          '-f', audioFilePath,
-          '-l', 'en',
-          '-otxt',
-          '-np'  // Suppress extra output, just generate the .txt file
-        ];
-
-        Logger.log('Running whisper command:', binaryPath, args.join(' '));
-
-        // Set working directory to whisper-bin so DLLs can be found
-        const binaryDir = path.dirname(binaryPath);
-
+      const transcribedText = await new Promise((resolve, reject) => {
         const whisperProcess = spawn(binaryPath, args, {
-          stdio: ['pipe', 'pipe', 'pipe'],
-          cwd: binaryDir,  // Set working directory so DLLs are found
-          env: { ...process.env, PATH: process.env.PATH }
+          cwd: binaryDir,
+          env
         });
 
         let stdout = '';
         let stderr = '';
 
-        whisperProcess.stdout.on('data', (data) => {
-          stdout += data.toString();
-        });
+        whisperProcess.stdout.on('data', d => { stdout += d.toString(); });
+        whisperProcess.stderr.on('data', d => { stderr += d.toString(); });
 
-        whisperProcess.stderr.on('data', (data) => {
-          stderr += data.toString();
-        });
-
-        whisperProcess.on('close', (code) => {
+        whisperProcess.on('close', code => {
           if (code === 0) {
-            // Prefer reading the generated .txt file
-            const txtPath = `${audioFilePath}.txt`;
-            let transcription = '';
-            if (fs.existsSync(txtPath)) {
+            const txtFile = `${wavPath}.txt`;
+            if (fs.existsSync(txtFile)) {
               try {
-                // Read text and replace newlines with spaces to prevent hard wrapping
-                transcription = fs.readFileSync(txtPath, 'utf8')
-                  .replace(/[\r\n]+/g, ' ') // Replace line breaks with spaces
-                  .replace(/\s+/g, ' ')      // Collapse multiple spaces
-                  .trim();
-              } catch (e) {
-                Logger.warn('Failed reading generated txt file, falling back to stdout');
-              }
+                const text = fs.readFileSync(txtFile, 'utf8').trim();
+                fs.unlinkSync(txtFile);
+                return resolve(text);
+              } catch (e) {}
             }
-            // Fallback parsing stdout (not guaranteed)
-            if (!transcription) {
-              const lines = stdout.split('\n').filter(line => line.trim() && !line.startsWith('['));
-              transcription = lines.join(' ').trim();
-            }
-            Logger.log('Whisper transcription successful');
-            resolve([{ speech: transcription, start: '00:00:00.000', end: '00:00:10.000' }]);
+            resolve(stdout.trim());
           } else {
-            Logger.error('Whisper process failed with code:', code);
-            Logger.error('stdout:', stdout);
-            Logger.error('stderr:', stderr);
-            const errorMsg = stderr || stdout || `Process exited with code ${code}`;
-            reject(new Error(`Whisper binary failed: ${errorMsg}`));
+            reject(new Error(`Whisper binary exited with code ${code}: ${stderr || stdout}`));
           }
         });
 
-        whisperProcess.on('error', (error) => {
-          Logger.error('Whisper process error:', error);
-          reject(error);
-        });
+        whisperProcess.on('error', reject);
+      });
 
-      } catch (error) {
-        Logger.error('Error in transcribeWithWhisperBinary:', error);
-        reject(error);
-      }
-    });
-  }
-
-  async ensureWhisperBinary() {
-    const fs = require('fs');
-    const path = require('path');
-
-    // In production, extraResources are in process.resourcesPath
-    // In development, they're in the project root
-    let binaryDir;
-    try {
-      const { app } = require('electron');
-      if (app && app.isPackaged) {
-        // Production: extraResources are in process.resourcesPath
-        binaryDir = path.join(process.resourcesPath, 'whisper-bin');
-      } else {
-        // Development: in project root
-        binaryDir = path.join(__dirname, '..', 'whisper-bin');
-      }
-    } catch (e) {
-      // Fallback: check if we're in packaged app by checking process.resourcesPath
-      if (process.resourcesPath) {
-        binaryDir = path.join(process.resourcesPath, 'whisper-bin');
-      } else {
-        binaryDir = path.join(__dirname, '..', 'whisper-bin');
-      }
-    }
-
-    Logger.log('Looking for whisper binary in:', binaryDir);
-    Logger.log('process.resourcesPath:', process.resourcesPath);
-    Logger.log('__dirname:', __dirname);
-    Logger.log('Directory exists:', fs.existsSync(binaryDir));
-
-    // Check if directory exists
-    if (!fs.existsSync(binaryDir)) {
-      Logger.error('Whisper binary directory does not exist:', binaryDir);
-      Logger.log('Trying alternative paths...');
-
-      // Try alternative paths
-      const alternatives = [
-        path.join(process.resourcesPath || '', 'whisper-bin'),
-        path.join(__dirname, '..', 'whisper-bin'),
-        path.join(process.cwd(), 'whisper-bin')
-      ];
-
-      // Try to get app path if available
+      // Cleanup
       try {
-        const { app } = require('electron');
-        if (app && app.getAppPath) {
-          alternatives.push(path.join(app.getAppPath(), 'whisper-bin'));
-        }
-      } catch (e) {
-        // Ignore if app not available
-      }
+        if (fs.existsSync(audioFilePath)) fs.unlinkSync(audioFilePath);
+        if (wavPath !== audioFilePath && fs.existsSync(wavPath)) fs.unlinkSync(wavPath);
+      } catch (e) {}
 
-      for (const altPath of alternatives) {
-        Logger.log('Checking alternative:', altPath);
-        if (fs.existsSync(altPath)) {
-          Logger.log('Found binary directory at:', altPath);
-          binaryDir = altPath;
-          break;
-        }
-      }
-    }
-
-    // List files in directory for debugging
-    if (fs.existsSync(binaryDir)) {
+      return transcribedText;
+    } catch (error) {
       try {
-        const files = fs.readdirSync(binaryDir);
-        Logger.log('Files in binary directory:', files.join(', '));
-      } catch (e) {
-        Logger.error('Error reading binary directory:', e);
-      }
+        if (fs.existsSync(audioFilePath)) fs.unlinkSync(audioFilePath);
+      } catch (e) {}
+      Logger.error('Local transcription failed:', error);
+      throw error;
     }
-
-    // Support either whisper-cli.exe or main.exe (common whisper.cpp CLI names on Windows)
-    const candidates = process.platform === 'win32'
-      ? ['whisper-cli.exe', 'main.exe']
-      : ['whisper-cli', 'main'];
-
-    for (const name of candidates) {
-      const candidatePath = path.join(binaryDir, name);
-      Logger.log('Checking for:', candidatePath, 'exists:', fs.existsSync(candidatePath));
-      if (fs.existsSync(candidatePath)) {
-        Logger.log('Found whisper binary:', candidatePath);
-        return candidatePath;
-      }
-    }
-
-    // Not found - provide clear actionable instructions
-    const expectedList = candidates.map(n => path.join(binaryDir, n)).join(' or ');
-    Logger.error('Whisper CLI not found at:', expectedList);
-    throw new Error(
-      `Whisper CLI not found. Expected location: ${expectedList}\n` +
-      `Please ensure the whisper-bin folder is included in the app build.`
-    );
   }
 
-  /**
-   * Check if model is downloaded
-   */
-  isModelDownloaded() {
-    // Ensure modelPath is set
-    if (!this.modelPath) {
-      const { app } = require('electron');
-      const modelsDir = path.join(app.getPath('userData'), 'whisper-models');
-      this.modelPath = path.join(modelsDir, `ggml-${this.modelName}.bin`);
-    }
-    return this.modelPath && fs.existsSync(this.modelPath);
-  }
-
-  /**
-   * Get model info
-   */
   getModelInfo() {
     return {
-      name: this.modelName,
-      path: this.modelPath,
-      downloaded: this.isModelDownloaded()
+      activeModelPath: this.getActiveModelPath(),
+      isDownloaded: this.isModelDownloaded(),
+      models: this.getLocalModelsList()
     };
   }
 }
 
 module.exports = LocalTranscriptionService;
-

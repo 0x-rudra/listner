@@ -611,49 +611,175 @@ body {
     margin-bottom: 6px;
 }
 
-.provider-container {
+.provider-card {
+    background: #17171b;
+    border: 1px solid #27272a;
+    border-radius: 10px;
+    padding: 14px;
     display: flex;
-    gap: 8px;
+    flex-direction: column;
+    gap: 14px;
+    animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.provider-card .form-group {
+    margin-bottom: 0;
+}
+
+.label-with-badge {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.status-badge {
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #27272a;
+    color: #a1a1aa;
+}
+
+.status-badge.ready {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.status-badge.pending {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.input-with-button {
+    position: relative;
+    display: flex;
     align-items: center;
 }
 
-.provider-select,
-select#microphone {
+.input-with-button input {
+    padding-right: 36px;
+}
+
+.model-actions-grid {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.model-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+}
+
+.model-action-btn.primary {
+    background: #10b981;
+    color: #ffffff;
     flex: 1;
-    background: #1a1a1e;
+}
+
+.model-action-btn.primary:hover {
+    background: #059669;
+}
+
+.model-action-btn.secondary {
+    background: #27272a;
+    border-color: #3f3f46;
+    color: #f4f4f5;
+    flex: 1;
+}
+
+.model-action-btn.secondary:hover {
+    background: #323238;
+}
+
+.model-action-btn.danger {
+    background: transparent;
+    border-color: #ef4444;
+    color: #ef4444;
+}
+
+.model-action-btn.danger:hover {
+    background: rgba(239, 68, 68, 0.15);
+}
+
+.model-action-btn.icon-only {
+    padding: 7px 10px;
+}
+
+/* Download Progress Bar */
+.download-progress-container {
+    background: #141417;
+    border: 1px solid #27272a;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-top: 6px;
+}
+
+.progress-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #a1a1aa;
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+.progress-track {
+    width: 100%;
+    height: 6px;
+    background: #27272a;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #10b981, #34d399);
+    border-radius: 3px;
+    transition: width 0.15s ease;
+}
+
+.provider-select,
+select#microphone,
+input[type="text"],
+input[type="password"] {
+    width: 100%;
+    background: #141417;
     border: 1px solid #27272a;
     border-radius: 8px;
     color: #f4f4f5;
-    padding: 9px 12px;
-    font-size: 13px;
+    padding: 8px 12px;
+    font-size: 12.5px;
     outline: none;
     transition: border-color 0.15s;
+    font-family: inherit;
 }
 
 .provider-select:focus,
 select#microphone:focus,
-input#hotkey:focus,
-input#apiKey:focus {
+input[type="text"]:focus,
+input[type="password"]:focus {
     border-color: #10b981;
-}
-
-.provider-input {
-    display: flex;
-    align-items: center;
-    position: relative;
-    flex: 1.2;
-}
-
-.provider-input input {
-    width: 100%;
-    background: #1a1a1e;
-    border: 1px solid #27272a;
-    border-radius: 8px;
-    color: #f4f4f5;
-    padding: 9px 36px 9px 12px;
-    font-size: 13px;
-    outline: none;
-    transition: border-color 0.15s;
 }
 
 .toggle-visibility {
@@ -670,25 +796,6 @@ input#apiKey:focus {
 
 .toggle-visibility:hover {
     color: #f4f4f5;
-}
-
-.download-icon-box {
-    width: 38px;
-    height: 38px;
-    background: #10b981;
-    border: none;
-    border-radius: 8px;
-    color: #ffffff;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.15s;
-    flex-shrink: 0;
-}
-
-.download-icon-box:hover {
-    background: #059669;
 }
 
 .help-text {

@@ -1,7 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Settings & Configuration
+  // Settings & BYOK Configuration
+  getAllSettings: () => ipcRenderer.invoke('get-all-settings'),
+  saveProviderSettings: (settings) => ipcRenderer.invoke('save-provider-settings', settings),
   getApiKey: () => ipcRenderer.invoke('get-api-key'),
   setApiKey: (key) => ipcRenderer.invoke('set-api-key', key),
   isConfigured: () => ipcRenderer.invoke('is-configured'),
@@ -13,8 +15,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resumeHotkey: () => ipcRenderer.send('resume-hotkey'),
   getTranscriptionMode: () => ipcRenderer.invoke('get-transcription-mode'),
   setTranscriptionMode: (mode) => ipcRenderer.invoke('set-transcription-mode', mode),
+  getCloudProvider: () => ipcRenderer.invoke('get-cloud-provider'),
+  setCloudProvider: (provider) => ipcRenderer.invoke('set-cloud-provider', provider),
+
+  // Local Offline Models & Import
+  getLocalModels: () => ipcRenderer.invoke('get-local-models'),
+  setLocalModel: (modelId) => ipcRenderer.invoke('set-local-model', modelId),
+  importLocalModel: () => ipcRenderer.invoke('import-local-model'),
+  downloadModel: (modelName) => ipcRenderer.invoke('download-model', modelName),
+  deleteLocalModel: (modelPath) => ipcRenderer.invoke('delete-local-model', modelPath),
   checkModelDownloaded: () => ipcRenderer.invoke('check-model-downloaded'),
-  downloadModel: () => ipcRenderer.invoke('download-model'),
+  onDownloadProgress: (callback) => {
+    ipcRenderer.on('download-progress', (event, progress) => callback(progress));
+  },
 
   // History
   getHistory: () => ipcRenderer.invoke('get-history'),

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, nativeTheme, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, nativeTheme, shell, dialog } = require('electron');
 const path = require('path');
 const HotkeyManager = require('./src/hotkeyManager');
 const AudioRecorder = require('./src/audioRecorder');
@@ -262,9 +262,17 @@ async function handleRecordStart() {
     return;
   }
 
-  if (!Config.isConfigured()) {
-    Logger.warn('Not configured, showing settings window');
-    showSettingsWindow();
+  const isOffline = Config.getTranscriptionMode() === 'offline';
+  const hasLocalModel = isOffline ? transcriptionService.localService.isModelDownloaded() : true;
+
+  if (!Config.isConfigured() || !hasLocalModel) {
+    Logger.warn('Not configured or offline model missing, showing settings window');
+    showMainWindow('settings');
+    if (settingsWindow && !settingsWindow.isDestroyed()) {
+      try {
+        settingsWindow.webContents.send('error', isOffline ? 'Please download or import a Whisper model in Settings first.' : 'Please configure your API key in Settings first.');
+      } catch (e) {}
+    }
     return;
   }
 
@@ -409,6 +417,42 @@ ipcMain.on('resume-hotkey', () => {
   if (hotkeyManager) hotkeyManager.resumeMonitoring();
 });
 
+ipcMain.handle('get-all-settings', () => {
+  return Config.getAllProviderSettings();
+});
+
+ipcMain.handle('save-provider-settings', (event, s) => {
+  if (s.transcriptionMode) Config.setTranscriptionMode(s.transcriptionMode);
+  if (s.cloudProvider) Config.setCloudProvider(s.cloudProvider);
+  if (s.openai) {
+    if (s.openai.apiKey !== undefined) Config.setOpenAIApiKey(s.openai.apiKey);
+    if (s.openai.model) Config.setOpenAIModel(s.openai.model);
+  }
+  if (s.groq) {
+    if (s.groq.apiKey !== undefined) Config.setGroqApiKey(s.groq.apiKey);
+    if (s.groq.model) Config.setGroqModel(s.groq.model);
+  }
+  if (s.custom) {
+    if (s.custom.endpoint !== undefined) Config.setCustomEndpoint(s.custom.endpoint);
+    if (s.custom.apiKey !== undefined) Config.setCustomApiKey(s.custom.apiKey);
+    if (s.custom.model) Config.setCustomModel(s.custom.model);
+  }
+  if (s.local) {
+    if (s.local.modelName) Config.setLocalModelName(s.local.modelName);
+    if (s.local.modelPath !== undefined) Config.setLocalModelPath(s.local.modelPath);
+  }
+  return true;
+});
+
+ipcMain.handle('get-cloud-provider', () => {
+  return Config.getCloudProvider();
+});
+
+ipcMain.handle('set-cloud-provider', (event, provider) => {
+  Config.setCloudProvider(provider);
+  return true;
+});
+
 ipcMain.handle('get-transcription-mode', () => {
   return Config.getTranscriptionMode();
 });
@@ -419,18 +463,65 @@ ipcMain.handle('set-transcription-mode', (event, mode) => {
   return true;
 });
 
-ipcMain.handle('check-model-downloaded', () => {
-  return transcriptionService.localService.isModelDownloaded();
+ipcMain.handle('get-local-models', () => {
+  return transcriptionService.localService.getLocalModelsList();
 });
 
-ipcMain.handle('download-model', async () => {
+ipcMain.handle('set-local-model', (event, modelId) => {
+  return transcriptionService.localService.setActiveModel(modelId);
+});
+
+ipcMain.handle('import-local-model', async () => {
   try {
-    await transcriptionService.localService.initialize();
-    return { success: true };
+    const result = await dialog.showOpenDialog(settingsWindow || undefined, {
+      title: 'Import Whisper GGML Model (.bin)',
+      filters: [
+        { name: 'Whisper GGML Model (*.bin)', extensions: ['bin'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      properties: ['openFile']
+    });
+
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+      return { canceled: true };
+    }
+
+    const selectedFile = result.filePaths[0];
+    const importedModel = await transcriptionService.localService.importModel(selectedFile);
+    return { success: true, model: importedModel };
+  } catch (error) {
+    Logger.error('Error importing local model:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('download-model', async (event, modelName = 'base.en') => {
+  try {
+    const result = await transcriptionService.localService.downloadModel(modelName, (progress) => {
+      if (settingsWindow && !settingsWindow.isDestroyed()) {
+        try {
+          settingsWindow.webContents.send('download-progress', progress);
+        } catch (e) {}
+      }
+    });
+    return { success: true, model: result };
   } catch (error) {
     Logger.error('Error downloading model:', error);
     return { success: false, error: error.message };
   }
+});
+
+ipcMain.handle('delete-local-model', (event, modelPath) => {
+  try {
+    transcriptionService.localService.deleteModel(modelPath);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('check-model-downloaded', () => {
+  return transcriptionService.localService.isModelDownloaded();
 });
 
 ipcMain.on('close-settings', () => {
